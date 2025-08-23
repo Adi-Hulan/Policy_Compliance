@@ -1,14 +1,16 @@
-from flask import Flask, request, jsonify
-from orchestrator.controller import Orchestrator
+from flask import Flask, jsonify
+from utils.supabase_client import supabase
 
 app = Flask(__name__)
-orchestrator = Orchestrator()
 
-@app.route('/process_query', methods=['POST'])
-def process_query():
-    data = request.json
-    response = orchestrator.route(data)
-    return jsonify(response)
+@app.route("/")
+def index():
+    return "Flask backend running! Go to /test to see Supabase data."
+
+@app.route("/test")
+def test():
+    data = supabase.table("test_table").select("*").execute()
+    return jsonify(data.data)
 
 if __name__ == '__main__':
     app.run(debug=True)
