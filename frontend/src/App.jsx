@@ -1,12 +1,47 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
-import viteLogo from "/vite.svg";
-import "./App.css";
+import './index.css'
+  import { useState, useEffect } from 'react'
+  import { createClient } from '@supabase/supabase-js'
+  import { Auth } from '@supabase/auth-ui-react'
+  import { ThemeSupa } from '@supabase/auth-ui-shared'
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-function App() {
-  const [count, setCount] = useState(0);
+  console.log(supabaseUrl, supabaseAnonKey)
+  const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
-  return <h1 class="text-3xl font-bold underline">Hello world!</h1>;
-}
+  export default function App() {
+    const [session, setSession] = useState(null)
 
-export default App;
+    useEffect(() => {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        setSession(session)
+      })
+
+      const {
+        data: { subscription },
+      } = supabase.auth.onAuthStateChange((_event, session) => {
+        setSession(session)
+      })
+
+      return () => subscription.unsubscribe()
+    }, [])
+
+    if (!session) {
+      return (
+        <div>
+          <Auth supabaseClient={supabase} appearance={{ theme: ThemeSupa }} />
+        </div>
+      )
+    }
+    else {
+      return (
+        <div>
+          <h2>Logged in!</h2>
+          <p>Session: {JSON.stringify(session, null, 2)}</p>
+          <button onClick={() => supabase.auth.signOut()} style={{ padding: '10px', backgroundColor: '#f44336', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+            Sign Out
+          </button>
+        </div>
+      )
+    }
+  }
