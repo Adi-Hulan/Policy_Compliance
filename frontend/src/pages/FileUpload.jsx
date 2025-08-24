@@ -11,38 +11,67 @@ const supabase = createClient(
 export default function FileUpload() {
   const [file, setFile] = useState(null);
   const [message, setMessage] = useState("");
+  const [fileUrl, setFileUrl] = useState("");
 
-  const handleFileChange = (e) => {
-    setFile(e.target.files[0]);
+  // Handle file selection
+  const handleFileChange = (event) => {
+    setFile(event.target.files[0]);
   };
 
-  const uploadFile = async () => {
-    if (!file) return;
+  // Handle file upload
+  const handleUpload = async () => {
+    if (!file) {
+      setMessage("Please select a file first!");
+      return;
+    }
 
-    const { data, error } = await supabase.storage
-      .from("documents") // your private bucket
-      .upload(`uploads/${Date.now()}_${file.name}`, file);
+    // Get the current authenticated user
+    const { data: sessionData } = await supabase.auth.getSession();
+    const user = sessionData?.session?.user;
 
-    if (error) {
-      setMessage(`Error: ${error.message}`);
-    } else {
-      setMessage("Upload success! Processing...");
-      
-      // ✅ Send file path (NOT public URL) to backend
-      await fetch("http://localhost:8000/process-file", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ file_path: data.path }),
-      });
+    if (!user) {
+      setMessage("You must be logged in to upload files.");
+      return;
+    }
+
+    try {
+      // Upload file to Supabase storage under user-specific folder
+      const { data, error } = await supabase.storage
+        .from("documents") // your bucket name
+        .upload(`uploads/${user.id}/${file.name}`, file, {
+          cacheControl: "3600",
+          upsert: false,
+          metadata: { owner: user.id }, // for RLS
+        });
+
+      if (error) throw error;
+
+      // Get public URL (optional, if your bucket allows)
+      const { data: publicUrlData } = supabase.storage
+        .from("documents")
+        .getPublicUrl(`uploads/${user.id}/${file.name}`);
+
+      setFileUrl(publicUrlData.publicUrl);
+      setMessage("File uploaded successfully!");
+    } catch (error) {
+      console.error("Upload error:", error);
+      setMessage(`Upload failed: ${error.message}`);
     }
   };
 
   return (
-    <div>
-      <p>test</p>
+    <div style={{ maxWidth: "400px", margin: "auto", textAlign: "center" }}>
+      <h2>Upload File</h2>
       <input type="file" onChange={handleFileChange} />
-      <button onClick={uploadFile}>Upload</button>
-      <p>{message}</p>
+      <button onClick={handleUpload} style={{ marginTop: "10px" }}>
+        Upload
+      </button>
+      {message && <p>{message}</p>}
+      {fileUrl && (
+        <p>
+          File URL: <a href={fileUrl} target="_blank" rel="noopener noreferrer">{fileUrl}</a>
+        </p>
+      )}
     </div>
   );
 }
