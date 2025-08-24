@@ -2,6 +2,7 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import ChatPage from '@/pages/ChatPage'
 import FileUpload from '@/pages/FileUpload'
+import LoginPage from '@/pages/LoginPage'
 
 function App() {
   return (
