@@ -1,14 +1,16 @@
-from flask import Flask, request, jsonify
-from orchestrator.controller import Orchestrator
+from flask import Flask
+from routes.document_routes import document_bp
+from routes.query_routes import query_bp
 
-app = Flask(__name__)
-orchestrator = Orchestrator()
+def create_app():
+    app = Flask(__name__)
 
-@app.route('/process_query', methods=['POST'])
-def process_query():
-    data = request.json
-    response = orchestrator.route(data)
-    return jsonify(response)
+    # Register blueprints
+    app.register_blueprint(document_bp, url_prefix="/documents")
+    app.register_blueprint(query_bp, url_prefix="/queries")
 
-if __name__ == '__main__':
+    return app
+
+if __name__ == "__main__":
+    app = create_app()
     app.run(debug=True)
