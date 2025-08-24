@@ -1,3 +1,6 @@
 flask
 supabase
 psycopg2
+python-dotenv
+google-generativeai
+PyPDF2

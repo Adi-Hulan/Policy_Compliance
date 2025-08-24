@@ -38,17 +38,22 @@ class DocumentProcessor:
 
 
             for chunk in chunks:
+
+                clean_chunk = chunk.replace("\x00", "")
+
                 embedding = genai.embed_content(
                     model=self.model,
-                    content=chunk,
+                    content=clean_chunk,
                     task_type="retrieval_document"
                 )["embedding"]
+                
 
                 doc_id = str(uuid.uuid4())
                 cur.execute(
                     "INSERT INTO documents (id, content, embedding) VALUES (%s, %s, %s)",
-                    (doc_id, chunk, embedding)
+                    (doc_id, clean_chunk, embedding)
                 )
+
 
             conn.commit()
             cur.close()
