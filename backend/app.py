@@ -1,3 +1,4 @@
+
 from flask import Flask
 from routes.document_routes import document_bp
 from routes.query_routes import query_bp
@@ -8,6 +9,7 @@ def create_app():
     # Register blueprints
     app.register_blueprint(document_bp, url_prefix="/documents")
     app.register_blueprint(query_bp, url_prefix="/queries")
+
 
     return app
 
