@@ -13,5 +13,6 @@ def analyze_query():
         return jsonify({"error": "Query not provided"}), 400
 
     print(f"query recived : {data}")
-    result = retriever.retrieve_chunks(data["query"])
-    return jsonify(result)
+    relevent_chunks = retriever.retrieve_chunks(data["query"])
+    response = analyzer.process(data["query"],relevent_chunks)
+    return jsonify(response)
