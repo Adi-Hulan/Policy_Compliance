@@ -41,18 +41,36 @@ export function useRealtimeChat({
       user: {
         name: username,
       },
-  createdAt: new Date().toISOString(),
-  room: roomName ?? 'my-chat-room',
+      createdAt: new Date().toISOString(),
+      room: roomName ?? 'my-chat-room',
     }
 
     // Update local state immediately for the sender
     setMessages((current) => [...current, message])
 
+    // Send message to realtime channel
     await channel.send({
       type: 'broadcast',
       event: EVENT_MESSAGE_TYPE,
       payload: message,
     })
+
+    // Send message to backend for analysis
+    try {
+      const response = await fetch('http://127.0.0.1:5000/queries/analyze', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ query: content }),
+      })
+      
+      if (!response.ok) {
+        console.error('Failed to analyze message:', await response.text())
+      }
+    } catch (error) {
+      console.error('Error sending message for analysis:', error)
+    }
   }, [channel, isConnected, username])
 
   return { messages, sendMessage, isConnected }
