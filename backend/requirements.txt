@@ -4,3 +4,4 @@ psycopg2
 python-dotenv
 google-generativeai
 PyPDF2
+flask-cors

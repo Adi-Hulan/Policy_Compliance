@@ -12,5 +12,6 @@ def analyze_query():
     if not data or "query" not in data:
         return jsonify({"error": "Query not provided"}), 400
 
+    print(f"query recived : {data}")
     result = retriever.retrieve_chunks(data["query"])
     return jsonify(result)
