@@ -5,6 +5,20 @@ export const ChatMessageItem = ({
   isOwnMessage,
   showHeader
 }) => {
+  const userName = message?.user?.name ?? ''
+  const raw = message?.createdAt ?? message?.created_at ?? null
+  let timeString = ''
+
+  if (raw != null) {
+    const d = new Date(raw)
+    if (!Number.isNaN(d.getTime())) {
+      timeString = d.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      })
+    }
+  }
   return (
     <div className={`flex mt-2 ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
       <div
@@ -16,14 +30,8 @@ export const ChatMessageItem = ({
             className={cn('flex items-center gap-2 text-xs px-3', {
               'justify-end flex-row-reverse': isOwnMessage,
             })}>
-            <span className={'font-medium'}>{message.user.name}</span>
-            <span className="text-foreground/50 text-xs">
-              {new Date(message.createdAt).toLocaleTimeString('en-US', {
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: true,
-              })}
-            </span>
+            <span className={'font-medium'}>{userName}</span>
+            <span className="text-foreground/50 text-xs">{timeString}</span>
           </div>
         )}
         <div

@@ -1,6 +1,8 @@
-import { useState, useEffect } from 'react';
-import supabase from '@/lib/supabase/client';
+import { useState, useEffect } from "react";
+import supabase from "@/lib/supabase/client";
 
+// fetch chat messages from your Supabase messages table
+// for a given roomName and expose them to your React components.
 export function useMessagesQuery(roomName) {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -9,10 +11,10 @@ export function useMessagesQuery(roomName) {
   useEffect(() => {
     async function fetchMessages() {
       const { data, error } = await supabase
-        .from('messages')
-        .select('*')
-        .eq('room', roomName)
-        .order('created_at', { ascending: true });
+        .from("messages")
+        .select("*")
+        .eq("room", roomName)
+        .order("created_at", { ascending: true });
 
       if (error) {
         setError(error);

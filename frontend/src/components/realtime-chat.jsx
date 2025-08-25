@@ -37,13 +37,48 @@ export const RealtimeChat = ({
 
   // Merge realtime messages with initial messages
   const allMessages = useMemo(() => {
-    const mergedMessages = [...initialMessages, ...realtimeMessages]
+    const mergedMessages = [...initialMessages, ...realtimeMessages].map((msg) => {
+      // Normalize timestamp coming from different sources (supabase timestamptz may appear
+      // as `created_at`, or as a string/number/Date). Produce an ISO string or null.
+      const raw = msg?.createdAt ?? msg?.created_at ?? null
+      let created = null
+
+      if (raw != null) {
+        if (typeof raw === 'string') {
+          const d = new Date(raw)
+          created = Number.isNaN(d.getTime()) ? null : d.toISOString()
+        } else if (typeof raw === 'number') {
+          const d = new Date(raw)
+          created = Number.isNaN(d.getTime()) ? null : d.toISOString()
+        } else if (raw instanceof Date) {
+          created = raw.toISOString()
+        }
+      }
+
+      return { ...msg, createdAt: created }
+    })
     // Remove duplicates based on message id
     const uniqueMessages = mergedMessages.filter(
       (message, index, self) => index === self.findIndex((m) => m.id === message.id)
     )
-    // Sort by creation date
-    const sortedMessages = uniqueMessages.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+    // Sort by creation date (defensive: handle missing or non-string createdAt)
+    const sortedMessages = uniqueMessages.sort((a, b) => {
+      const toKey = (val) => {
+        if (val == null) return null
+        if (typeof val === 'string') return val
+        const d = new Date(val)
+        return Number.isNaN(d.getTime()) ? null : d.toISOString()
+      }
+
+      const aKey = toKey(a?.createdAt)
+      const bKey = toKey(b?.createdAt)
+
+      if (aKey === bKey) return 0
+      if (aKey === null) return 1 // push items without a valid date to the end
+      if (bKey === null) return -1
+
+      return aKey.localeCompare(bKey)
+    })
 
     return sortedMessages
   }, [initialMessages, realtimeMessages])
@@ -80,7 +115,9 @@ export const RealtimeChat = ({
         <div className="space-y-1">
           {allMessages.map((message, index) => {
             const prevMessage = index > 0 ? allMessages[index - 1] : null
-            const showHeader = !prevMessage || prevMessage.user.name !== message.user.name
+            const prevUserName = prevMessage?.user?.name ?? ''
+            const messageUserName = message?.user?.name ?? ''
+            const showHeader = !prevMessage || prevUserName !== messageUserName
 
             return (
               <div
@@ -88,10 +125,10 @@ export const RealtimeChat = ({
                 className="animate-in fade-in slide-in-from-bottom-4 duration-300">
                 <ChatMessageItem
                   message={message}
-                  isOwnMessage={message.user.name === username}
+                  isOwnMessage={messageUserName === username}
                   showHeader={showHeader} />
               </div>
-            );
+            )
           })}
         </div>
       </div>
