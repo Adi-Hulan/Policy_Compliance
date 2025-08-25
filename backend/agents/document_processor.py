@@ -12,7 +12,7 @@ class DocumentProcessor:
         genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
         self.model = "models/embedding-001"
 
-    def chunk_text(self, text, sentences_per_chunk=5, overlap=2):
+    def chunk_text(self, text, sentences_per_chunk=15, overlap=3):
         text = ' '.join(text.split())
         sentences = sent_tokenize(text)
         chunks = []
@@ -61,7 +61,7 @@ class DocumentProcessor:
                     "INSERT INTO documents (id, content, embedding) VALUES (%s, %s, %s)",
                     (doc_id, clean_chunk, embedding)
                 )
-                print(f"Inserted chunk {i}")
+                print(f"Inserted chunk {i}/{len(chunks)}")
 
 
             conn.commit()
