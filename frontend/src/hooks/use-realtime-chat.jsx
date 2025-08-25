@@ -1,6 +1,6 @@
 'use client';
-import { createClient } from '@/lib/supabase/client'
 import { useCallback, useEffect, useState } from 'react'
+import supabase from '@/lib/supabase/client'
 
 const EVENT_MESSAGE_TYPE = 'message'
 
@@ -8,7 +8,6 @@ export function useRealtimeChat({
   roomName,
   username
 }) {
-  const supabase = createClient()
   const [messages, setMessages] = useState([])
   const [channel, setChannel] = useState(null)
   const [isConnected, setIsConnected] = useState(false)

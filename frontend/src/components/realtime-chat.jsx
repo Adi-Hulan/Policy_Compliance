@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Send } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
+
 /**
  * Realtime chat component
  * @param roomName - The name of the room to join. Each room is a unique chat.
@@ -15,6 +16,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
  * @param messages - The messages to display in the chat. Useful if you want to display messages from a database.
  * @returns The chat component
  */
+
 export const RealtimeChat = ({
   roomName,
   username,
