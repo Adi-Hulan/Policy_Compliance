@@ -1,16 +1,18 @@
-from flask import Flask, jsonify
-from utils.supabase_client import supabase
 
-app = Flask(__name__)
+from flask import Flask
+from routes.document_routes import document_bp
+from routes.query_routes import query_bp
 
-@app.route("/")
-def index():
-    return "Flask backend running! Go to /test to see Supabase data."
+def create_app():
+    app = Flask(__name__)
 
-@app.route("/test")
-def test():
-    data = supabase.table("test_table").select("*").execute()
-    return jsonify(data.data)
+    # Register blueprints
+    app.register_blueprint(document_bp, url_prefix="/documents")
+    app.register_blueprint(query_bp, url_prefix="/queries")
 
-if __name__ == '__main__':
+
+    return app
+
+if __name__ == "__main__":
+    app = create_app()
     app.run(debug=True)

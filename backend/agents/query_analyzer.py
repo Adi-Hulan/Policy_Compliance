@@ -1,2 +1,10 @@
-def analyze_query(query):
-    return {"analysis": f"Query '{query}' analyzed."}
+import google.generativeai as genai
+from db.connection import get_db
+
+class QueryAnalyzer:
+    def process(self, query):
+        return {
+            "agent": "QueryAnalyzer",
+            "status": "success",
+            "result": f"Analyzed query: {query}"
+        }
