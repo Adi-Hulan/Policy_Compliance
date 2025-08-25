@@ -41,7 +41,8 @@ export function useRealtimeChat({
       user: {
         name: username,
       },
-      createdAt: new Date().toISOString(),
+  createdAt: new Date().toISOString(),
+  room: roomName ?? 'my-chat-room',
     }
 
     // Update local state immediately for the sender

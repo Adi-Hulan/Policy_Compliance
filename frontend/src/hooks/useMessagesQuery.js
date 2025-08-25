@@ -19,7 +19,17 @@ export function useMessagesQuery(roomName) {
       if (error) {
         setError(error);
       } else {
-        setMessages(data || []);
+        // Map DB rows to the frontend message shape { id, content, user: { name }, createdAt, room }
+        const mapped = (data || []).map((row) => ({
+          id: row.id,
+          content: row.content,
+          user: { name: row.username ?? null },
+          createdAt: row.created_at
+            ? new Date(row.created_at).toISOString()
+            : null,
+          room: row.room ?? null,
+        }));
+        setMessages(mapped);
       }
       setLoading(false);
     }

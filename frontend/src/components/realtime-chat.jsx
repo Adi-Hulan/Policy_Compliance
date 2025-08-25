@@ -83,11 +83,13 @@ export const RealtimeChat = ({
     return sortedMessages
   }, [initialMessages, realtimeMessages])
 
+  // Only notify parent about new realtime messages (avoid re-storing initialMessages on mount)
   useEffect(() => {
-    if (onMessage) {
-      onMessage(allMessages)
-    }
-  }, [allMessages, onMessage])
+    if (!onMessage) return
+    if (!Array.isArray(realtimeMessages) || realtimeMessages.length === 0) return
+
+    onMessage(realtimeMessages)
+  }, [realtimeMessages, onMessage])
 
   useEffect(() => {
     // Scroll to bottom whenever messages change
