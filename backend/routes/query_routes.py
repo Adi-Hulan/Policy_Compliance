@@ -11,4 +11,4 @@ def analyze_query():
         return jsonify({"error": "Query not provided"}), 400
 
     result = analyzer.process(data["query"])
-    return jsonify(result)
+    return jsonify(result) 

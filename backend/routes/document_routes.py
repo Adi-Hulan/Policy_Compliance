@@ -16,3 +16,7 @@ def upload_document():
 
     result = processor.process(file_path)
     return jsonify(result)
+
+@document_bp.route("/test", methods=["GET"])
+def test():
+    print("Test endpoint hit")

@@ -1,1 +1,15 @@
 .env
+
+# Local test scripts
+simple_test.py
+test_recommendation_agent.py
+llm_smoke_test.py
+test_db.py
+test_env.py
+test_supabase_connection.py
+
+
+# Optional: Python cache & virtual env
+__pycache__/
+*.pyc
+venv/

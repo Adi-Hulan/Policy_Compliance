@@ -54,7 +54,7 @@ class DocumentProcessor:
                     task_type="retrieval_document"
                 )["embedding"]
                 except Exception as e:
-                    return {"agent": ..., "result": str(e)}
+                    return {"agent": "DocumentProcessor", "status": "error", "result": str(e)}
 
                 doc_id = str(uuid.uuid4())
                 cur.execute(
