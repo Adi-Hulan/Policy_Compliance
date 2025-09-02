@@ -14,5 +14,6 @@ def analyze_query():
 
     print(f"query recived : {data}")
     relevent_chunks = retriever.retrieve_chunks(data["query"])
+    
     response = analyzer.process(data["query"],relevent_chunks)
     return jsonify(response)

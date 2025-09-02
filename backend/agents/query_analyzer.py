@@ -1,4 +1,5 @@
 import google.generativeai as genai
+from agents.message_utils import insert_message
 import os
 
 # It's good practice to handle the case where the import fails.
@@ -70,22 +71,20 @@ Never use external knowledge, only the provided context.
         try:
             # Combine chunks into one string for context.
             context = "\n\n".join(chunks)
-     
             # Create the full prompt by combining the base prompt, context, and query.
             prompt = f"{self.base_prompt}\n\nContext:\n{chunks}\n\nQuestion:\n{query}\nAnswer:"
 
-          
-
-            # Use the generate_content method which is correct for this use case.
-            # This is the key fix for the "no attribute 'chat'" error.
+            print(f"Pripmt is : {prompt}")
             response = self.model.generate_content(prompt)
 
-            # Extract the text from the response object.
-            # The 'response' object has a '.text' attribute containing the generated content.
-            # Using a fallback to handle potential empty responses.
             answer = response.text
-            
             print(f"Anser is : {answer}" )
+
+            # Insert the answer into the messages table
+            try:
+                insert_message(query, answer)
+            except Exception as e:
+                print(f"Error inserting message: {e}")
 
             return {
                 "agent": "QueryAnalyzer",

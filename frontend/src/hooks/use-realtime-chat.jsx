@@ -8,6 +8,7 @@ export function useRealtimeChat({ roomName, username }) {
   const [messages, setMessages] = useState([]);
   const [channel, setChannel] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [response, setResponse] = useState(null);
 
   useEffect(() => {
     const newChannel = supabase.channel(roomName);
@@ -66,6 +67,8 @@ export function useRealtimeChat({ roomName, username }) {
         if (!response.ok) {
           console.error("Failed to analyze message:", await response.text());
         }
+        console.log(response);
+        return response;
       } catch (error) {
         console.error("Error sending message for analysis:", error);
       }
