@@ -13,9 +13,17 @@ export async function storeMessages(messages) {
     room: msg.room || null, // include room if needed
   }));
 
-  console.log('Inserting rows:', formatted)
-  // request the inserted rows to be returned
-  const { data, error } = await supabase.from("messages").insert(formatted).select();
+  console.log("Inserting rows:", formatted);
+  // Use upsert with onConflict on the primary key (id) so repeated attempts
+  // to store the same message (same `id`) are idempotent and won't fail
+  // with a duplicate key error. This handles cases where multiple clients
+  // receive a broadcast and all try to persist the same message.
+  // If your DB generates ids server-side (non-UUID), adapt to a different
+  // reconciliation strategy instead of relying on client-provided ids.
+  const { data, error } = await supabase
+    .from("messages")
+    .upsert(formatted, { onConflict: "id" })
+    .select();
 
   console.log("Insert result:", { data, error });
 
