@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import ChatPage from '@/pages/ChatPage'
 import FileUpload from '@/pages/FileUpload'
 import LoginPage from '@/pages/LoginPage'
+import DocAttach from '@/pages/DocAttach'
 
 function App() {
   return (
@@ -12,6 +13,7 @@ function App() {
         <Route path="/chat" element={<ChatPage />} />
         <Route path="/upload" element={<FileUpload />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/doc-attach" element={<DocAttach />} />
       </Routes>
     </Router>
   )

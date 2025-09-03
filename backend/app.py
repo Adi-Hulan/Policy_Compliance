@@ -7,7 +7,13 @@ from routes.query_routes import query_bp
 def create_app():
     app = Flask(__name__)
 
-    CORS(app)
+    CORS(app, resources={
+        r"/*": {
+            "origins": ["http://localhost:5173"],
+            "methods": ["GET", "POST", "OPTIONS"],
+            "allow_headers": ["Content-Type"]
+        }
+    })
 
     # Register blueprints
     app.register_blueprint(document_bp, url_prefix="/documents")
