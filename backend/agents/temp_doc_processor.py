@@ -4,10 +4,18 @@ from db.connection import get_db
 import os
 import uuid
 import nltk
-nltk.download('punkt')
-from nltk.tokenize import sent_tokenize
+# Download punkt data if not already downloaded
+try:
+    nltk.data.find('tokenizers/punkt')
+except LookupError:
+    nltk.download('punkt')
 
-class DocumentProcessor:
+nltk.download('punkt_tab')
+from nltk.tokenize import sent_tokenize
+from dotenv import load_dotenv
+load_dotenv()
+
+class DocumentProcessorTemp:
     def __init__(self):
         genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
         self.model = "models/embedding-001"
@@ -37,7 +45,7 @@ class DocumentProcessor:
                 return {"agent": "DocumentProcessor", "status": "error", "result": "No text found in PDF"}
             
             chunks = self.chunk_text(text)
-            
+            print(f"Total chunks created: {len(chunks)}")
             # 3. Save to pgvector
             conn = get_db()
             cur = conn.cursor()
@@ -46,6 +54,7 @@ class DocumentProcessor:
             for chunk in chunks:
                 i=i+1
                 clean_chunk = chunk.replace("\x00", "")
+                print(f"Processing chunk {i}/{len(chunks)}")
 
                 try:
                     embedding = genai.embed_content(
@@ -54,7 +63,8 @@ class DocumentProcessor:
                     task_type="retrieval_document"
                 )["embedding"]
                 except Exception as e:
-                    return {"agent": ..., "result": str(e)}
+                    return {"agent": "TempDocumentProcessor", "status": "error", "result": str(e)}
+
 
                 doc_id = str(uuid.uuid4())
                 cur.execute(
@@ -76,3 +86,4 @@ class DocumentProcessor:
 
         except Exception as e:
             return {"agent": "TempDocumentProcessor", "status": "error", "result": str(e)}
+

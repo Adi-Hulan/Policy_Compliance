@@ -51,7 +51,7 @@ const FileUploadForm = () => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          text,
+          query: text,
           metadata,
           fileUrl
         }),

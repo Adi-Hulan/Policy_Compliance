@@ -30,7 +30,7 @@ processor = DocumentProcessor()
 
 
 @document_bp.route("/upload/temp", methods=["POST"])
-def upload_document():
+def upload_temp_document():
     
     print("inside upload/temp")
     data = request.get_json()
