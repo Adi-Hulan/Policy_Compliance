@@ -6,6 +6,7 @@ const FileUploadForm = () => {
   const [file, setFile] = useState(null);
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
+  const [response, setResponse] = useState(null);
 
   const handleFileChange = (e) => {
     setFile(e.target.files[0]);
@@ -45,7 +46,6 @@ const FileUploadForm = () => {
       };
 
       console.log("Temp File uploaded to:", fileUrl);
-      console.log("token is:", await getToken());
       
       // 4. Send text + metadata to backend API
       const response = await fetch("http://127.0.0.1:5000/documents/upload/temp", {
@@ -63,6 +63,7 @@ const FileUploadForm = () => {
 
       const result = await response.json();
       console.log("Backend response:", result);
+      setResponse(result);
 
       alert("File and text submitted successfully!");
       setText("");
@@ -94,6 +95,13 @@ const FileUploadForm = () => {
       >
         {loading ? "Uploading..." : "Submit"}
       </button>
+      
+      {response && (
+        <div className="mt-4 p-4 bg-gray-100 rounded-md">
+          <h3 className="font-semibold mb-2">Response from Analysis:</h3>
+          <p className="whitespace-pre-wrap">{response.result}</p>
+        </div>
+      )}
     </form>
   );
 };

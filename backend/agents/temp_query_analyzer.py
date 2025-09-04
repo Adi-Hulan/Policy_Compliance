@@ -1,5 +1,7 @@
 import google.generativeai as genai
 import os
+from dotenv import load_dotenv
+load_dotenv()
 
 try:
     from db.connection import get_db
@@ -36,7 +38,7 @@ Compare the temporarily attached document against the company policies.
 If the user asks whether something in the attached document complies with company policies,
 check the content carefully and provide a clear, direct answer in simple language.
 
-If the answer cannot be found in the provided documents, respond only with: "I don’t know".
+If the answer cannot be found in the provided documents, respond with: "I don’t know" and also give the specific reason for not knowing.
 
 Do not guess, assume, or use any external knowledge.
 """
@@ -62,9 +64,13 @@ Do not guess, assume, or use any external knowledge.
 
         try:
             # Combine chunks into strings for context
-            policy_context = "\n\n".join(policy_chunks) if policy_chunks else "No policy documents provided."
-            temp_context = "\n\n".join(temp_chunks) if temp_chunks else "No temporary document provided."
+# Extract content from chunk dictionaries
+            policy_contents = [chunk["content"] for chunk in policy_chunks["chunks"]] if policy_chunks.get("chunks") else []
+            temp_contents = [chunk["content"] for chunk in temp_chunks["chunks"]] if temp_chunks.get("chunks") else []
 
+            # Join the contents
+            policy_context = "\n\n".join(policy_contents) if policy_contents else "No policy documents provided."
+            temp_context = "\n\n".join(temp_contents) if temp_contents else "No temporary document provided."
             # Create the full prompt
             prompt = f"{self.base_prompt}\n\nCompany Policies:\n{policy_context}\n\nTemporary Document:\n{temp_context}\n\nQuestion:\n{query}\nAnswer:"
 
@@ -73,14 +79,14 @@ Do not guess, assume, or use any external knowledge.
             answer = response.text
 
             return {
-                "agent": "QueryAnalyzer",
+                "agent": "TempQueryAnalyzer",
                 "status": "success",
                 "result": answer
             }
 
         except Exception as e:
             return {
-                "agent": "QueryAnalyzer",
+                "agent": "TempQueryAnalyzer",
                 "status": "error",
                 "result": f"An error occurred during content generation: {e}"
             }

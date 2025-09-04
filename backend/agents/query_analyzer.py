@@ -62,7 +62,7 @@ Never use external knowledge, only the provided context.
         """
         if not self.model:
             return {
-                "agent": "QueryAnalyzer",
+                "agent": "MainQueryAnalyzer",
                 "status": "error",
                 "result": "Gemini API model not initialized."
             }
@@ -88,7 +88,7 @@ Never use external knowledge, only the provided context.
             print(f"Anser is : {answer}" )
 
             return {
-                "agent": "QueryAnalyzer",
+                "agent": "MainQueryAnalyzer",
                 "status": "success",
                 "result": answer
             }
@@ -96,7 +96,7 @@ Never use external knowledge, only the provided context.
         except Exception as e:
             # Improved error handling to provide more specific feedback.
             return {
-                "agent": "QueryAnalyzer",
+                "agent": "MainQueryAnalyzer",
                 "status": "error",
                 "result": f"An error occurred during content generation: {e}"
             }

@@ -43,6 +43,7 @@ def upload_temp_document():
         return jsonify({"error": "filePath missing"}), 400
 
     file_path = data["fileUrl"]  # e.g. "uploads/169375-file.pdf"
+    print(f"file_path: {file_path}")
 
     try:
         # 1. Download file from Supabase Storage
@@ -65,7 +66,6 @@ def upload_temp_document():
         if not data or "query" not in data:
             return jsonify({"error": "Query not provided"}), 400
 
-        print(f"query recived : {data["query"]}")
         relevent_chunks = retriever.retrieve_chunks(data["query"])
         relevent_chunks_from_temp = temp_retriever.retrieve_chunks(data["query"])
         print("going to analyzer")
