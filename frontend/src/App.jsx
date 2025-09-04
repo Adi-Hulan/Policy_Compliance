@@ -4,6 +4,7 @@ import ChatPage from '@/pages/ChatPage'
 import FileUpload from '@/pages/FileUpload'
 import LoginPage from '@/pages/LoginPage'
 import DocAttach from '@/pages/DocAttach'
+import ChatwLang from '@/pages/ChatwLang'
 
 function App() {
   return (
@@ -14,6 +15,7 @@ function App() {
         <Route path="/upload" element={<FileUpload />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/doc-attach" element={<DocAttach />} />
+        <Route path="/chat-with-lang" element={<ChatwLang />} />
       </Routes>
     </Router>
   )
