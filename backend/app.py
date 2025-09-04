@@ -1,4 +1,3 @@
-
 from flask import Flask
 from flask_cors import CORS
 from routes.document_routes import document_bp
@@ -12,7 +11,8 @@ def create_app():
         r"/*": {
             "origins": ["http://localhost:5173"],
             "methods": ["GET", "POST", "OPTIONS"],
-            "allow_headers": ["Content-Type"]
+            "allow_headers": ["Content-Type", "Authorization"],  # Add Authorization
+            "expose_headers": ["Authorization"]
         }
     })
 
@@ -20,9 +20,8 @@ def create_app():
     app.register_blueprint(document_bp, url_prefix="/documents")
     app.register_blueprint(query_bp, url_prefix="/queries")
 
-    # Middleware for authentication
-
-    register_auth_middleware(app)
+    # Register auth middleware
+    register_auth_middleware(app)  # Remove the public_endpoints parameter
 
     return app
 

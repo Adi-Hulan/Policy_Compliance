@@ -5,3 +5,4 @@ python-dotenv
 google-generativeai
 PyPDF2
 flask-cors
+PyJWT>=2.0.0
