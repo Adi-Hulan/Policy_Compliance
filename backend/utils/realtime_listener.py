@@ -1,3 +1,5 @@
+''' DEPRECATED - not in use'''
+
 import os
 import asyncio
 from realtime import AsyncRealtimeClient

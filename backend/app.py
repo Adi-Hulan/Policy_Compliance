@@ -13,9 +13,8 @@ def create_app():
     app.register_blueprint(document_bp, url_prefix="/documents")
     app.register_blueprint(query_bp, url_prefix="/queries")
 
-
     return app
 
 if __name__ == "__main__":
     app = create_app()
-    app.run(debug=True)
+    app.run(debug=True, port=5000)
