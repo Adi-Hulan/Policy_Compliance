@@ -1,5 +1,5 @@
 // src/lib/auth.js
-import { supabase } from "./supabaseClient";
+import supabase from "@/lib/supabase/client";
 
 export async function getToken() {
   const { data } = await supabase.auth.getSession();

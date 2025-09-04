@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import supabase from '@/lib/supabase/client';
+import { getToken } from '@/lib/auth';
 
 const FileUploadForm = () => {
   const [file, setFile] = useState(null);
@@ -44,11 +45,14 @@ const FileUploadForm = () => {
       };
 
       console.log("Temp File uploaded to:", fileUrl);
+      console.log("token is:", await getToken());
+      
       // 4. Send text + metadata to backend API
       const response = await fetch("http://127.0.0.1:5000/documents/upload/temp", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${await getToken()}`,
         },
         body: JSON.stringify({
           query: text,

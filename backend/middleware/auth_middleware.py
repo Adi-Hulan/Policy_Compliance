@@ -4,12 +4,20 @@ from utils.auth import verify_jwt
 def register_auth_middleware(app):
     @app.before_request
     def authenticate():
+        # Skip auth for OPTIONS requests (CORS preflight)
+        if request.method == 'OPTIONS':
+            return None
+            
+        # List of endpoints that don't require auth
+        public_endpoints = ['auth_bp.login', 'auth_bp.register']
+        
         # Allow public endpoints
-        if request.endpoint in ["auth_bp.login", "auth_bp.register"]:
-            return
+        if request.endpoint in public_endpoints:
+            return None
         
         # Require Authorization header
         auth_header = request.headers.get("Authorization", None)
+        print("Auth Header inside middleware:", auth_header)
         if not auth_header or not auth_header.startswith("Bearer "):
             return jsonify({"error": "Unauthorized"}), 401
 
