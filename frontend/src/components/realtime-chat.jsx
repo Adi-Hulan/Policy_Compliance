@@ -4,8 +4,9 @@ import { useChatScroll } from '@/hooks/use-chat-scroll'
 import { useRealtimeChat } from '@/hooks/use-realtime-chat';
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Send } from 'lucide-react'
+import { Send, FileText, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { FileUploader } from '@/components/file-uploader'
 
 
 /**
@@ -24,6 +25,7 @@ export const RealtimeChat = ({
   messages: initialMessages = []
 }) => {
   const { containerRef, scrollToBottom } = useChatScroll()
+  const [attachedFile, setAttachedFile] = useState(null)
 
   const {
     messages: realtimeMessages,
@@ -100,9 +102,21 @@ export const RealtimeChat = ({
     e.preventDefault()
     if (!newMessage.trim() || !isConnected) return
 
-    sendMessage(newMessage)
+    // Send both message and file if available
+    sendMessage(newMessage, attachedFile)
+    
+    // Clear message and file after sending
     setNewMessage('')
-  }, [newMessage, isConnected, sendMessage])
+    setAttachedFile(null)
+  }, [newMessage, attachedFile, isConnected, sendMessage])
+  
+  const handleFileUpload = (fileData) => {
+    setAttachedFile(fileData)
+  }
+  
+  const clearAttachedFile = () => {
+    setAttachedFile(null)
+  }
 
   return (
     <div
@@ -154,16 +168,44 @@ export const RealtimeChat = ({
       <form
         onSubmit={handleSendMessage}
         className="flex w-full gap-2 border-t border-border p-4">
+        
+        {/* File attachment display */}
+        {attachedFile && (
+          <div className="absolute bottom-16 left-4 right-4 bg-muted/80 p-2 rounded-md flex items-center justify-between">
+            <div className="flex items-center">
+              <FileText className="h-4 w-4 mr-2 text-primary" />
+              <span className="text-xs truncate max-w-[200px]">{attachedFile.metadata.fileName}</span>
+            </div>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-6 w-6 rounded-full"
+              onClick={clearAttachedFile}
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          </div>
+        )}
+        
+        {/* File uploader */}
+        <FileUploader 
+          onFileUpload={handleFileUpload} 
+          onClearFile={clearAttachedFile}
+        />
+        
+        {/* Message input */}
         <Input
           className={cn(
             'rounded-full bg-background text-sm transition-all duration-300',
-            isConnected && newMessage.trim() ? 'w-[calc(100%-36px)]' : 'w-full'
+            isConnected && newMessage.trim() ? 'w-[calc(100%-80px)]' : 'w-[calc(100%-44px)]'
           )}
           type="text"
           value={newMessage}
           onChange={(e) => setNewMessage(e.target.value)}
-          placeholder="Type a message..."
+          placeholder={attachedFile ? "Ask about this document..." : "Type a message..."}
           disabled={!isConnected} />
+          
+        {/* Send button */}
         {isConnected && newMessage.trim() && (
           <Button
             className="aspect-square rounded-full animate-in fade-in slide-in-from-right-4 duration-300"

@@ -5,6 +5,7 @@ from orchestrator.nodes.temp_document_processor_node import temp_document_proces
 from orchestrator.nodes.retriever_node import retriever_node
 from orchestrator.nodes.temp_retriever_node import temp_retriever_node
 from orchestrator.nodes.temp_query_analyzer_node import temp_query_analyzer_node
+from orchestrator.nodes.message_sender_node import message_sender_node
 
 class DocumentQueryState(TypedDict):
     file_path: str
@@ -15,6 +16,10 @@ class DocumentQueryState(TypedDict):
     chunks: list
     temp_chunks: list
     policy_chunks: list
+    message_status: str
+    message_id: str
+    message_created_at: str
+    message_error: str
 
 def build_document_query_pipeline() -> StateGraph:
     """
@@ -26,6 +31,7 @@ def build_document_query_pipeline() -> StateGraph:
     3. Retrieves relevant policy chunks
     4. Retrieves relevant chunks from the temporary document
     5. Analyzes the query against both sets of chunks
+    6. Sends the analysis result back to the messages table as an agent response
     
     Returns:
         A LangGraph StateGraph that can be executed with a file path and query.
@@ -38,10 +44,14 @@ def build_document_query_pipeline() -> StateGraph:
     workflow.add_node("policy_retriever", retriever_node)
     workflow.add_node("temp_retriever", temp_retriever_node)
     workflow.add_node("analyzer", temp_query_analyzer_node)
+    workflow.add_node("message_sender", message_sender_node)
     
     # Add edges - both processors run in parallel, then analyzer
     workflow.add_edge("temp_document_processor", "temp_retriever")
     workflow.add_edge("temp_document_processor", "policy_retriever")
+    
+    # Add edge from analyzer to message sender
+    workflow.add_edge("analyzer", "message_sender")
     
     # Define conditional edges from processors to analyzer
     workflow.add_conditional_edges(
@@ -85,6 +95,15 @@ def execute_document_query_pipeline(file_path: str, query: str) -> Dict[str, Any
     # Execute the pipeline
     try:
         result = pipeline.invoke(initial_state)
+        
+        # Include message information in the response
+        if result.get("message_status") == "success":
+            result["agent_message_sent"] = True
+            result["agent_message_id"] = result.get("message_id")
+        else:
+            result["agent_message_sent"] = False
+            result["agent_message_error"] = result.get("message_error")
+            
         return result
     except Exception as e:
         return {

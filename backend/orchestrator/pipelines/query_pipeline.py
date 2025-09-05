@@ -4,6 +4,7 @@ from typing import Dict, Any, TypedDict
 
 from orchestrator.nodes.retriever_node import retriever_node
 from orchestrator.nodes.query_analyzer_node import query_analyzer_node
+from orchestrator.nodes.message_sender_node import message_sender_node
 
 class QueryState(TypedDict):
     query: str
@@ -11,6 +12,10 @@ class QueryState(TypedDict):
     chunks: list
     result: str
     source_chunks: list
+    message_status: str
+    message_id: str
+    message_created_at: str
+    message_error: str
 
 def build_query_pipeline() -> StateGraph:
     """
@@ -20,6 +25,7 @@ def build_query_pipeline() -> StateGraph:
     1. Takes a user query
     2. Retrieves relevant policy chunks
     3. Analyzes the query against the retrieved chunks
+    4. Sends the result back to the messages table as an agent response
     
     Returns:
         A LangGraph StateGraph that can be executed with a query.
@@ -30,9 +36,11 @@ def build_query_pipeline() -> StateGraph:
     # Add nodes to the graph
     workflow.add_node("retriever", retriever_node)
     workflow.add_node("analyzer", query_analyzer_node)
+    workflow.add_node("message_sender", message_sender_node)
     
     # Add edges
     workflow.add_edge("retriever", "analyzer")
+    workflow.add_edge("analyzer", "message_sender")
     
     # Set the entry point
     workflow.set_entry_point("retriever")
@@ -69,6 +77,15 @@ def execute_query_pipeline(query: str) -> Dict[str, Any]:
     # Execute the pipeline
     try:
         result = pipeline.invoke(initial_state)
+        
+        # Include message information in the response
+        if result.get("message_status") == "success":
+            result["agent_message_sent"] = True
+            result["agent_message_id"] = result.get("message_id")
+        else:
+            result["agent_message_sent"] = False
+            result["agent_message_error"] = result.get("message_error")
+            
         return result
     except Exception as e:
         return {

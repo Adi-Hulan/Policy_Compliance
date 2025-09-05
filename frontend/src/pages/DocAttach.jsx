@@ -22,13 +22,30 @@ const FileUploadForm = () => {
     setLoading(true);
 
     try {
+      // Make sure user is signed in to Supabase for storage access
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        console.log("No active session, signing in anonymously");
+        // Try anonymous sign-in
+        const { error: signInError } = await supabase.auth.signInAnonymously();
+        if (signInError) {
+          console.error("Anonymous sign-in failed:", signInError);
+          throw new Error('Authentication required for file uploads');
+        }
+        console.log("Anonymous sign-in successful");
+      }
+      
       // 1. Upload file to Supabase storage
       const fileName = `${Date.now()}-${file.name}`;
       const { data, error } = await supabase.storage
         .from("documents") // your Supabase bucket name
         .upload(fileName, file);
 
-      if (error) throw error;
+      if (error) {
+        console.error("Supabase storage error:", error);
+        throw error;
+      }
 
       // 2. Get public URL of uploaded file
       const { data: publicUrlData } = supabase.storage

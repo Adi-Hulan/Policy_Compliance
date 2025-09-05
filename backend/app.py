@@ -21,7 +21,7 @@ def create_app():
     app.register_blueprint(query_bp, url_prefix="/queries")
 
     # Register auth middleware
-    register_auth_middleware(app)  # Remove the public_endpoints parameter
+    #register_auth_middleware(app)  
 
     return app
 

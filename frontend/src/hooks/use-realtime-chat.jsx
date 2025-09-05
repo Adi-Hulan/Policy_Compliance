@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import supabase from "@/lib/supabase/client";
 
 const EVENT_MESSAGE_TYPE = "message";
-const BACKEND_API_URL = "http://127.0.0.1:5000/api";
+import { getToken } from '@/lib/auth';
 
 export function useRealtimeChat({ roomName, username }) {
   const [messages, setMessages] = useState([]);
@@ -102,17 +102,23 @@ export function useRealtimeChat({ roomName, username }) {
   // reconcile and replace the optimistic message with the persisted row.
   // If insertion fails we remove the optimistic message and surface an error.
   const sendMessage = useCallback(
-    async (content) => {
+    async (content, attachedFile = null) => {
       if (!isConnected) {
         console.log("[realtime] sendMessage aborted - not connected");
         return;
       }
 
       const clientId = crypto.randomUUID();
+      
+      // Add file information to the message content if a file is attached
+      let messageContent = content;
+      if (attachedFile) {
+        messageContent += ` [Attached document: ${attachedFile.metadata.fileName}]`;
+      }
 
       const optimistic = {
         id: clientId,
-        content,
+        content: messageContent,
         user: { name: username },
         createdAt: new Date().toISOString(),
         room: roomName ?? "my-chat-room",
@@ -131,10 +137,11 @@ export function useRealtimeChat({ roomName, username }) {
           .insert([
             {
               id: clientId,
-              content,
+              content: messageContent,
               username: username,
               room: roomName ?? "my-chat-room",
               created_at: new Date().toISOString(),
+              // Don't try to insert file_data or file_url if the columns don't exist
             },
           ])
           .select()
@@ -148,25 +155,38 @@ export function useRealtimeChat({ roomName, username }) {
         console.log("[realtime] Sending message to query analyzer...");
         
         try {
+          // Get auth token - commented out for now
+          // const token = await getToken();
+          
+          // Prepare the payload with both query and document info if available
           const queryPayload = {
-            query: data.content  // Send the message content as the query
+            query: content  // Original content without file annotation
           };
-
-          const response = await fetch(`${BACKEND_API_URL.replace('/api', '')}/queries/analyze`, {
+          
+          // Add document URL if a file is attached
+          if (attachedFile) {
+            queryPayload.document = attachedFile.fileUrl;
+            // Also include metadata for future use
+            queryPayload.metadata = attachedFile.metadata;
+          }
+          
+          // Always use the query analyzer endpoint - orchestrator will route appropriately
+          const response = await fetch("http://127.0.0.1:5000/queries/analyze", {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
+              // Auth header commented out for now
+              // 'Authorization': `Bearer ${token}`
             },
             body: JSON.stringify(queryPayload),
           });
-
+          
           const result = await response.json();
-
+          
           if (!response.ok) {
-            console.error("[realtime] Query analysis failed:", result);
-            // Don't throw error - message is already in Supabase
+            console.error("[realtime] Analysis failed:", result);
           } else {
-            console.log("[realtime] ✅ Query analyzed successfully:", result);
+            console.log("[realtime] ✅ Analysis successful:", result);
           }
         } catch (backendError) {
           console.error("[realtime] Query analysis API call failed:", backendError);
