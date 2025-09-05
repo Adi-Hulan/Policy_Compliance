@@ -40,6 +40,13 @@ export const ChatMessageItem = ({
             isOwnMessage ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground'
           )}>
           {message.content}
+          {/* If the message was optimistically added and is still being inserted
+              into the DB, show a subtle sending indicator. The hook will replace
+              this optimistic message with the persisted row once the Postgres
+              subscription or insert response confirms the insertion. */}
+          {message._status === 'sending' ? (
+            <div className="text-[10px] opacity-70 mt-1">sending...</div>
+          ) : null}
         </div>
       </div>
     </div>

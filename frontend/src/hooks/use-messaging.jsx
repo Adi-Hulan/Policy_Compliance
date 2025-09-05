@@ -2,22 +2,18 @@
 import { useCallback, useEffect, useState } from "react";
 import supabase from "@/lib/supabase/client";
 
-const EVENT_MESSAGE_TYPE = "message";
-const BACKEND_API_URL = "http://127.0.0.1:5000/api";
+const BACKEND_API_URL = "http://localhost:5000/api";
 
-export function useRealtimeChat({ roomName, username }) {
+export function useMessaging({ roomName, username }) {
   const [messages, setMessages] = useState([]);
   const [channel, setChannel] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
 
-  // Subscribe to Postgres inserts on the `messages` table. This subscription
-  // is the single source of truth for persisted messages. Incoming INSERT
-  // events from Postgres will be reconciled against any optimistic messages
-  // the client created earlier.
+  // Subscribe to Postgres changes for real-time updates
   useEffect(() => {
     const dbChannel = supabase.channel("messages-db");
 
-    // INSERT handler: add or replace optimistic message
+    // Listen for INSERT events to show new messages in real-time
     dbChannel.on(
       "postgres_changes",
       { event: "INSERT", schema: "public", table: "messages" },
@@ -44,7 +40,7 @@ export function useRealtimeChat({ roomName, username }) {
       }
     );
 
-    // UPDATE handler: replace existing message with updated persisted row
+    // Listen for UPDATE and DELETE events
     dbChannel.on(
       "postgres_changes",
       { event: "UPDATE", schema: "public", table: "messages" },
@@ -63,14 +59,11 @@ export function useRealtimeChat({ roomName, username }) {
           if (found) {
             return current.map((m) => (m.id === mapped.id ? mapped : m));
           }
-          // If we didn't have it locally, append the updated row so UI stays
-          // consistent with DB.
           return [...current, mapped];
         });
       }
     );
 
-    // DELETE handler: remove the message from local state
     dbChannel.on(
       "postgres_changes",
       { event: "DELETE", schema: "public", table: "messages" },
@@ -81,7 +74,7 @@ export function useRealtimeChat({ roomName, username }) {
       }
     );
 
-    // subscribe and reflect connection state
+    // Subscribe and handle connection state
     dbChannel.subscribe((status) => {
       if (status === "SUBSCRIBED") setIsConnected(true);
       if (status === "CLOSED" || status === "UNSUBSCRIBED") setIsConnected(false);
@@ -95,16 +88,11 @@ export function useRealtimeChat({ roomName, username }) {
     };
   }, [roomName, username]);
 
-  // sendMessage now inserts directly into the Supabase `messages` table.
-  // We implement optimistic UI by adding a local message with `_status: 'sending'`
-  // and a client-generated id. When the DB insert is confirmed (either via
-  // the immediate insert response or via the Postgres subscription), we
-  // reconcile and replace the optimistic message with the persisted row.
-  // If insertion fails we remove the optimistic message and surface an error.
+  // Send message function with Supabase insert + REST API call
   const sendMessage = useCallback(
     async (content) => {
       if (!isConnected) {
-        console.log("[realtime] sendMessage aborted - not connected");
+        console.log("[messaging] sendMessage aborted - not connected");
         return;
       }
 
@@ -119,13 +107,12 @@ export function useRealtimeChat({ roomName, username }) {
         _status: "sending",
       };
 
-      // Add optimistic message immediately so UI feels responsive
+      // Add optimistic message immediately for responsive UI
       setMessages((current) => [...current, optimistic]);
 
       try {
-        // Attempt to insert into the DB. We include the client-generated id so
-        // the inserted row will have the same id; this makes reconciliation
-        // simple when the Postgres subscription delivers the INSERT event.
+        // Step 1: Insert message into Supabase
+        console.log("[messaging] Inserting message into Supabase...");
         const { data, error } = await supabase
           .from("messages")
           .insert([
@@ -142,38 +129,38 @@ export function useRealtimeChat({ roomName, username }) {
 
         if (error) throw error;
 
-        console.log("[realtime] ✅ Message inserted into Supabase:", data.id);
+        console.log("[messaging] ✅ Message inserted into Supabase:", data.id);
 
-        // Step 2: Send message to Flask backend query analyzer
-        console.log("[realtime] Sending message to query analyzer...");
+        // Step 2: Send message to Flask backend via REST API
+        console.log("[messaging] Sending message to Flask backend...");
         
-        try {
-          const queryPayload = {
-            query: data.content  // Send the message content as the query
-          };
+        const backendPayload = {
+          id: data.id,
+          username: data.username,
+          content: data.content,
+          room: data.room,
+          created_at: data.created_at,
+        };
 
-          const response = await fetch(`${BACKEND_API_URL.replace('/api', '')}/queries/analyze`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(queryPayload),
-          });
+        const response = await fetch(`${BACKEND_API_URL}/messages`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(backendPayload),
+        });
 
-          const result = await response.json();
+        const result = await response.json();
 
-          if (!response.ok) {
-            console.error("[realtime] Query analysis failed:", result);
-            // Don't throw error - message is already in Supabase
-          } else {
-            console.log("[realtime] ✅ Query analyzed successfully:", result);
-          }
-        } catch (backendError) {
-          console.error("[realtime] Query analysis API call failed:", backendError);
-          // Don't throw error - message is already in Supabase
+        if (!response.ok) {
+          console.error("[messaging] Backend processing failed:", result);
+          // Don't throw error here - message is already in Supabase
+          // Just log the backend processing failure
+        } else {
+          console.log("[messaging] ✅ Message processed by backend:", result);
         }
 
-        // If insert returns the persisted row, replace optimistic entry with it.
+        // Replace optimistic message with persisted data
         if (data) {
           const mapped = {
             id: data.id,
@@ -185,13 +172,14 @@ export function useRealtimeChat({ roomName, username }) {
 
           setMessages((current) => current.map((m) => (m.id === clientId ? mapped : m)));
         }
-      } catch (err) {
-        console.error("Failed to insert message:", err);
 
-        // Remove optimistic message and let UI surface an error (toast or similar)
+      } catch (err) {
+        console.error("[messaging] Error in message flow:", err);
+
+        // Remove optimistic message on error
         setMessages((current) => current.filter((m) => m.id !== clientId));
-        // Small, framework-agnostic error surface: replace with your app's toast
-        // system (e.g. react-hot-toast, shadcn toast, etc.) in a real app.
+        
+        // Show user-friendly error
         try {
           window.alert("Failed to send message. Please try again.");
         } catch (e) {

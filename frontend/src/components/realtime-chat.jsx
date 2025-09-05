@@ -9,7 +9,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 
 
 /**
- * Realtime chat component
+ * Realtime chat component with Supabase + REST API messaging flow
  * @param roomName - The name of the room to join. Each room is a unique chat.
  * @param username - The username of the user
  * @param onMessage - The callback function to handle the messages. Useful if you want to store the messages in a database.
@@ -107,6 +107,23 @@ export const RealtimeChat = ({
   return (
     <div
       className="flex flex-col h-full w-full bg-background text-foreground antialiased">
+      
+      {/* Connection Status */}
+      <div className="flex items-center justify-between p-3 border-b border-border bg-muted/30">
+        <div className="flex items-center space-x-2 text-sm">
+          <div className={cn(
+            "w-2 h-2 rounded-full",
+            isConnected ? "bg-green-500" : "bg-red-500"
+          )}></div>
+          <span className="text-muted-foreground">
+            {isConnected ? "Connected to Supabase" : "Disconnected"}
+          </span>
+        </div>
+        <div className="text-xs text-muted-foreground">
+          Room: {roomName} | User: {username}
+        </div>
+      </div>
+
       {/* Messages */}
       <div ref={containerRef} className="flex-1 overflow-y-auto p-4 space-y-4">
         {allMessages.length === 0 ? (
