@@ -15,10 +15,11 @@ dist-ssr
 
 # Python cache files
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
-
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.cpython-*.pyc
 
 # Editor directories and files
 .vscode/*
@@ -31,6 +32,4 @@ __pycache__/
 *.sln
 *.sw?
 .env
-*.pyc
-*.cpython-version
-__pycache__
+
