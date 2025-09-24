@@ -4,7 +4,7 @@ from agents.chuck_retriever import Retriever
 from utils.prompts import MAIN_PROMPT
 import os
 
-from langchain_openai import ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage, SystemMessage
 from dotenv import load_dotenv
 
@@ -13,7 +13,11 @@ load_dotenv()
 query_bp = Blueprint("queries", __name__)
 analyzer = QueryAnalyzer()
 retriever = Retriever()
-llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+llm = ChatGoogleGenerativeAI(
+    model="gemini-1.5-flash", 
+    temperature=0,
+    google_api_key=os.getenv('GEMINI_API_KEY')
+)
 
 # pretend DB
 SESSIONS = {}  # {session_id: [BaseMessage, ...]}
@@ -38,9 +42,11 @@ def analyze_query():
     session_id = data["session_id"]
     msg = data["message"]
 
-    context = retriever.retrieve_chunks(msg)
+    # Temporarily disable Gemini retriever to test OpenAI
+    # context = retriever.retrieve_chunks(msg)
+    context = "No context - testing OpenAI only"
 
-    fullMsg = "User Message : " + msg + "Context : " + str(context)
+    fullMsg = "User Message : " + msg + " Context : " + str(context)
 
     print(f"Retrived Question : {fullMsg}")
 
