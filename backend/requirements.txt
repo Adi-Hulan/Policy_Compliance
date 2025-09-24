@@ -4,3 +4,10 @@ psycopg2
 python-dotenv
 google-generativeai
 PyPDF2
+nltk
+langchain
+langchain-google-genai
+langchain-postgres
+langchain-community
+requests
+flask-cors
