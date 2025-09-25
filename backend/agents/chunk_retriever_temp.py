@@ -2,13 +2,13 @@ import google.generativeai as genai
 from db.connection import get_db
 import os
 
-class Retriever:
+class TempRetriever:
     def __init__(self):
         genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
         self.model = "models/embedding-001"
 
-    def retrieve_chunks(self, question, top_k=5):
-        print(f"Retrived Question inside the chunk retriever: {question}")
+    def retrieve_chunks(self, question, session_id, top_k=5):
+        print(f"Retrived Question inside temp_retriever: {question}")
         """
         Returns top-k most relevant chunks from the database for a question.
         """
@@ -20,7 +20,6 @@ class Retriever:
                 task_type="retrieval_document"
             )["embedding"]
 
-            print(f"Question Embedding: {question_embedding[:5]}...")  # Print first 5 values
             # Ensure it's float list
             question_embedding = [float(x) for x in question_embedding]
 
@@ -30,7 +29,7 @@ class Retriever:
 
             query = f"""
                 SELECT id, content, embedding <=> %s::vector AS distance
-                FROM documents
+                FROM temp_documents_{session_id}
                 ORDER BY distance
                 LIMIT %s
             """

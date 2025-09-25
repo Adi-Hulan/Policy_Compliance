@@ -4,3 +4,8 @@ psycopg2
 python-dotenv
 google-generativeai
 PyPDF2
+langchain==0.1.0
+langchain-openai==0.0.2
+langchain-core
+openai
+nltk
