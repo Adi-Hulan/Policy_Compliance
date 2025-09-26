@@ -9,3 +9,6 @@ langchain-openai==0.0.2
 langchain-core
 openai
 nltk
+langgraph
+requests
+langchain-google-genai
