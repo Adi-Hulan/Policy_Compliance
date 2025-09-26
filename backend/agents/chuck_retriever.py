@@ -1,34 +1,39 @@
-import google.generativeai as genai
+# import google.generativeai as genai
 from db.connection import get_db
 import os
+from google import genai
 
 class Retriever:
     def __init__(self):
-        genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-        self.model = "models/embedding-001"
+        # Initialize client using API key from environment
+        self.client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+        self.model = "gemini-embedding-001"
 
     def retrieve_chunks(self, question, top_k=5):
-        print(f"Retrived Question inside the chunk retriever: {question}")
+        print(f"Retrieved Question inside the chunk retriever: {question}")
         """
         Returns top-k most relevant chunks from the database for a question.
         """
         try:
             # 1. Create embedding for the question
-            question_embedding = genai.embed_content(
+            result = self.client.models.embed_content(
                 model=self.model,
-                content=question,
-                task_type="retrieval_document"
-            )["embedding"]
+                contents=[question]  # must be a list
+            )
 
-            print(f"Question Embedding: {question_embedding[:5]}...")  # Print first 5 values
-            # Ensure it's float list
+            # Extract the embedding vector (first item because we passed one text)
+            question_embedding = result.embeddings[0].values
+
+            print(f"Question Embedding (first 5 dims): {question_embedding[:5]}...")
+
+            # Ensure it's a float list
             question_embedding = [float(x) for x in question_embedding]
 
             # 2. Query pgvector
             conn = get_db()
             cur = conn.cursor()
 
-            query = f"""
+            query = """
                 SELECT id, content, embedding <=> %s::vector AS distance
                 FROM documents
                 ORDER BY distance
@@ -41,6 +46,7 @@ class Retriever:
 
             # 3. Format results
             chunks = [{"id": r[0], "content": r[1], "distance": r[2]} for r in results]
+            print(f"Retrieved {len(chunks)} chunks from DB.")
             return {"status": "success", "chunks": chunks}
 
         except Exception as e:

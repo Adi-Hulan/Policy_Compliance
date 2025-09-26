@@ -1,4 +1,4 @@
-import google.generativeai as genai
+# import google.generativeai as genai
 from utils.pdf_parser import extract_text_from_pdf
 from db.connection import get_db
 import os
@@ -6,11 +6,12 @@ import uuid
 import nltk
 nltk.download('punkt')
 from nltk.tokenize import sent_tokenize
+from google import genai
 
 class DocumentProcessor:
     def __init__(self):
-        genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-        self.model = "models/embedding-001"
+        self.client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+        self.model = "gemini-embedding-001"
 
     def chunk_text(self, text, sentences_per_chunk=15, overlap=3):
         text = ' '.join(text.split())
@@ -48,15 +49,27 @@ class DocumentProcessor:
                 clean_chunk = chunk.replace("\x00", "")
 
                 try:
-                    embedding = genai.embed_content(
-                    model=self.model,
-                    content=clean_chunk,
-                    task_type="retrieval_document"
-                )["embedding"]
-                except Exception as e:
-                    return {"agent": ..., "result": str(e)}
+                    # Generate embedding using official API
+                    result = self.client.models.embed_content(
+                        model=self.model,
+                        contents=[clean_chunk]  # must be a list
+                    )
 
+                    # Extract embedding
+                    embedding = result.embeddings[0].values
+                    embedding = [float(x) for x in embedding]
+
+                except Exception as e:
+                    return {
+                        "agent": "DocumentProcessor",
+                        "status": "error",
+                        "result": str(e)
+                    }
+
+                # Generate unique doc_id
                 doc_id = str(uuid.uuid4())
+
+                # Insert into DB
                 cur.execute(
                     "INSERT INTO documents (id, content, embedding) VALUES (%s, %s, %s)",
                     (doc_id, clean_chunk, embedding)

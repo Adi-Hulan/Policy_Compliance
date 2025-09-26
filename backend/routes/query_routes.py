@@ -9,14 +9,19 @@ from utils.supabase_client import supabase
 from agents.attached_document_processor import DocumentProcessorTemp
 import os
 from agents.chunk_retriever_temp import TempRetriever
-
+from langchain_google_genai import ChatGoogleGenerativeAI
 load_dotenv()
+import tempfile
+import requests
 
 query_bp = Blueprint("queries", __name__)
 analyzer = QueryAnalyzer()
 retriever = Retriever()
-TempRetriever = TempRetriever()
-llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+tempRetriever = TempRetriever()
+llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", 
+                             temperature=0,
+                             google_api_key=os.getenv("GEMINI_API_KEY")
+)
 
 # pretend DB
 SESSIONS = {}  # {session_id: [BaseMessage, ...]}
@@ -40,25 +45,33 @@ def analyze_query():
     session_id = data["session_id"]
     msg = data["message"]
     document_url = data.get("document_url")
-
-    print(f"Session ID: {session_id}, Message: {msg}, Document URL: {document_url} inside the /analyze route")
+    safe_session_id = session_id.replace("-", "_")
     
     # Process new document if provided
     if document_url and session_id not in DOCUMENT_CONTEXTS:
-        print(f"Processing document for session {session_id}")
-        vector_store = doc_processor.process(document_url, session_id)
+        print("Processing new document for context")
+        print(f"Document URL: {document_url}")
+        resbefore = requests.get(document_url)
+        res = resbefore.content
+        print(f"Downloaded document size: {len(res)} bytes") 
+        with tempfile.NamedTemporaryFile(delete=False) as tmp:
+            tmp.write(res)
+            tmp_file_path = tmp.name
+        
+        print(f"Temporary file saved at: {tmp_file_path}")
+
+        vector_store = doc_processor.process(tmp_file_path, safe_session_id)
+        os.remove(tmp_file_path)  # Clean up temp file
         if vector_store:
             DOCUMENT_CONTEXTS[session_id] = session_id
     
     # Retrieve context from both sources
-    print(f"Retrieving from documents table")
     policy_context = retriever.retrieve_chunks(msg)
-    print(f"Policy Context: {policy_context} to check for the error")
     doc_context = []
     
     if session_id in DOCUMENT_CONTEXTS:
-        print(f"Retrieving from temp_documents_{session_id}")
-        doc_results = TempRetriever.retrieve_chunks(msg, session_id)
+        print("Retrieving from temp document context")
+        doc_results = tempRetriever.retrieve_chunks(msg, safe_session_id)
         doc_context = doc_results.get("chunks", [])
     
     # Combine contexts

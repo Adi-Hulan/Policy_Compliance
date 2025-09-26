@@ -1,35 +1,39 @@
-import google.generativeai as genai
+# import google.generativeai as genai
 from db.connection import get_db
 import os
+from google import genai
 
 class TempRetriever:
     def __init__(self):
-        genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-        self.model = "models/embedding-001"
+        self.client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+        self.model = "gemini-embedding-001"
 
-    def retrieve_chunks(self, question, session_id, top_k=5):
+    def retrieve_chunks(self, question, safe_session_id, top_k=5):
         print(f"Retrived Question inside temp_retriever: {question}")
         """
         Returns top-k most relevant chunks from the database for a question.
         """
         try:
             # 1. Create embedding for the question
-            question_embedding = genai.embed_content(
+            result = self.client.models.embed_content(
                 model=self.model,
-                content=question,
-                task_type="retrieval_document"
-            )["embedding"]
+                contents=[question]  # must be a list
+            )
 
             # Ensure it's float list
-            question_embedding = [float(x) for x in question_embedding]
+            question_embedding = result.embeddings[0].values
 
+            print(f"Question Embedding inside the temp chunk retriever (first 5 dims): {question_embedding[:5]}...")
+
+            # Ensure it's a float list
+            question_embedding = [float(x) for x in question_embedding]
             # 2. Query pgvector
             conn = get_db()
             cur = conn.cursor()
 
             query = f"""
                 SELECT id, content, embedding <=> %s::vector AS distance
-                FROM temp_documents_{session_id}
+                FROM temp_documents_{safe_session_id}
                 ORDER BY distance
                 LIMIT %s
             """

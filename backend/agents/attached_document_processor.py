@@ -1,9 +1,10 @@
-import google.generativeai as genai
+# import google.generativeai as genai
 from utils.pdf_parser import extract_text_from_pdf
 from db.connection import get_db
 import os
 import uuid
 import nltk
+from google import genai
 # Download punkt data if not already downloaded
 try:
     nltk.data.find('tokenizers/punkt')
@@ -18,8 +19,8 @@ load_dotenv()
 class DocumentProcessorTemp:
     def __init__(self):
         print(f"Initializing DocumentProcessorTemp")
-        genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-        self.model = "models/embedding-001"
+        self.client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+        self.model = "gemini-embedding-001"
 
     def chunk_text(self, text, sentences_per_chunk=15, overlap=3):
         text = ' '.join(text.split())
@@ -39,6 +40,8 @@ class DocumentProcessorTemp:
 
     def process(self, file_path, session_id: str):
         try:
+            print(f"Processing document for session inside attached_document_processor")
+            print(f"File path: {file_path}, Session ID: {session_id}")
             # 1. Extract text
             text = extract_text_from_pdf(file_path)
             print(f"Length of text in characters: {len(text)}")
@@ -54,7 +57,7 @@ class DocumentProcessorTemp:
                 CREATE TABLE IF NOT EXISTS temp_documents_{session_id} (
                     id UUID PRIMARY KEY,
                     content TEXT,
-                    embedding vector(768)
+                    embedding vector(3072)
                 )
             """)
             conn.commit()
@@ -66,18 +69,27 @@ class DocumentProcessorTemp:
                 print(f"Processing chunk {i}/{len(chunks)}")
 
                 try:
-                    embedding = genai.embed_content(
-                    model=self.model,
-                    content=clean_chunk,
-                    task_type="retrieval_document"
-                )["embedding"]
+                    # Generate embedding using official API
+                    result = self.client.models.embed_content(
+                        model=self.model,
+                        contents=[clean_chunk]  # must be a list
+                    )
+
+                    # Extract embedding
+                    embedding = result.embeddings[0].values
+                    embedding = [float(x) for x in embedding]
+
                 except Exception as e:
-                    return {"agent": "TempDocumentProcessor", "status": "error", "result": str(e)}
+                    return {
+                        "agent": "DocumentProcessor",
+                        "status": "error",
+                        "result": str(e)
+                    }
 
 
                 doc_id = str(uuid.uuid4())
                 cur.execute(
-                    "INSERT INTO temp_documents_{session_id} (id, content, embedding) VALUES (%s, %s, %s)",
+                    f"INSERT INTO temp_documents_{session_id} (id, content, embedding) VALUES (%s, %s, %s)",
                     (doc_id, clean_chunk, embedding)
                 )
                 print(f"Inserted chunk {i}/{len(chunks)}")
