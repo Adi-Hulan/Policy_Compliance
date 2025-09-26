@@ -12,5 +12,16 @@ def analyze_query():
     if not data or "query" not in data:
         return jsonify({"error": "Query not provided"}), 400
 
-    result = analyzer.process(data["query"])
-    return jsonify(result)
+    # Step 1: Analyze the query
+    analysis_result = analyzer.process(data["query"])
+
+    # Step 2: Retrieve relevant chunks
+    retrieved_chunks = retriever.retrieve_chunks(data["query"])
+
+    # Step 3: Combine both results in a single response
+    response = {
+        "analysis": analysis_result,
+        "retrieved_chunks": retrieved_chunks
+    }
+
+    return jsonify(response)

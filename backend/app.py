@@ -13,6 +13,9 @@ def create_app():
 
     print("Creating app and registering blueprints")
 
+    # Enable CORS
+    CORS(app, resources={r"/*": {"origins": "http://localhost:5173"}})
+
     # Register blueprints
     app.register_blueprint(document_bp, url_prefix="/documents")
     app.register_blueprint(query_bp, url_prefix="/queries")
