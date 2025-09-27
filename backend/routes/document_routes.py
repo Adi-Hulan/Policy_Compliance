@@ -68,7 +68,6 @@ def analyze_document():
                         "distance": match["distance"]
                     })
 
-        print(f"Paired contexts: {paired_contexts}")
         # Prompt Gemini
         prompt = f"""
         You are a compliance analyzer. Compare attached document clauses with company policies. 
@@ -105,7 +104,6 @@ def analyze_document():
         except json.JSONDecodeError:
             violations = {"error": "Failed to parse LLM response", "raw": raw_text}
 
-        print(f"Violations: {violations}")
         return jsonify(violations)
 
     finally:
