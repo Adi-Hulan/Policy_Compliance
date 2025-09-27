@@ -100,7 +100,10 @@ def llm_node(state: OrchestratorState) -> OrchestratorState:
     history = state["history"]
     print(f"[LLM_NODE] History has {len(history)} messages")
     print(f"[LLM_NODE] Full user message length: {len(state['full_user_message'])}")
-    convo = history + [HumanMessage(content=state["full_user_message"])]
+    
+    # Add system prompt at the beginning of conversation
+    system_message = SystemMessage(content=MAIN_PROMPT)
+    convo = [system_message] + history + [HumanMessage(content=state["full_user_message"])]
     print(f"[LLM_NODE] Total conversation length: {len(convo)} messages")
     print("[LLM_NODE] Invoking LLM...")
     response = _LLM.invoke(convo)
