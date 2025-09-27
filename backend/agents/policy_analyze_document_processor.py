@@ -94,6 +94,7 @@ class AnalyzeDocumentProcessorTemp:
                         "result": str(e)
                     }
 
+            print(f"Inserted {len(chunks)} chunks into DB")
             conn.commit()
             cur.close()
             conn.close()
