@@ -6,12 +6,12 @@ import uuid
 import nltk
 nltk.download('punkt')
 from nltk.tokenize import sent_tokenize
-from google import genai
+import google.generativeai as genai
 
 class DocumentProcessor:
     def __init__(self):
-        self.client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
-        self.model = "gemini-embedding-001"
+        genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+        self.model = "models/embedding-001"
 
     def chunk_text(self, text, sentences_per_chunk=15, overlap=3):
         text = ' '.join(text.split())
@@ -50,13 +50,11 @@ class DocumentProcessor:
 
                 try:
                     # Generate embedding using official API
-                    result = self.client.models.embed_content(
+                    embedding = genai.embed_content(
                         model=self.model,
-                        contents=[clean_chunk]  # must be a list
-                    )
-
-                    # Extract embedding
-                    embedding = result.embeddings[0].values
+                        content=clean_chunk,
+                        task_type="retrieval_document"
+                    )["embedding"]
                     embedding = [float(x) for x in embedding]
 
                 except Exception as e:

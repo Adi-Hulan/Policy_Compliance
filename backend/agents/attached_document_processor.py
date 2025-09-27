@@ -1,10 +1,9 @@
-# import google.generativeai as genai
+import google.generativeai as genai
 from utils.pdf_parser import extract_text_from_pdf
 from db.connection import get_db
 import os
 import uuid
 import nltk
-from google import genai
 # Download punkt data if not already downloaded
 try:
     nltk.data.find('tokenizers/punkt')
@@ -19,8 +18,8 @@ load_dotenv()
 class DocumentProcessorTemp:
     def __init__(self):
         print(f"Initializing DocumentProcessorTemp")
-        self.client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
-        self.model = "gemini-embedding-001"
+        genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+        self.model = "models/embedding-001"
 
     def chunk_text(self, text, sentences_per_chunk=15, overlap=3):
         text = ' '.join(text.split())
@@ -70,13 +69,11 @@ class DocumentProcessorTemp:
 
                 try:
                     # Generate embedding using official API
-                    result = self.client.models.embed_content(
+                    embedding = genai.embed_content(
                         model=self.model,
-                        contents=[clean_chunk]  # must be a list
-                    )
-
-                    # Extract embedding
-                    embedding = result.embeddings[0].values
+                        content=clean_chunk,
+                        task_type="retrieval_document"
+                    )["embedding"]
                     embedding = [float(x) for x in embedding]
 
                 except Exception as e:

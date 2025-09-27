@@ -1,13 +1,12 @@
-# import google.generativeai as genai
+import google.generativeai as genai
 from db.connection import get_db
 import os
-from google import genai
 
 class Retriever:
     def __init__(self):
         # Initialize client using API key from environment
-        self.client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
-        self.model = "gemini-embedding-001"
+        genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+        self.model = "models/embedding-001"
 
     def retrieve_chunks(self, question, top_k=5):
         print(f"Retrieved Question inside the chunk retriever: {question}")
@@ -16,13 +15,11 @@ class Retriever:
         """
         try:
             # 1. Create embedding for the question
-            result = self.client.models.embed_content(
+            question_embedding = genai.embed_content(
                 model=self.model,
-                contents=[question]  # must be a list
-            )
-
-            # Extract the embedding vector (first item because we passed one text)
-            question_embedding = result.embeddings[0].values
+                content=question,
+                task_type="retrieval_document"
+            )["embedding"]
 
             print(f"Question Embedding (first 5 dims): {question_embedding[:5]}...")
 

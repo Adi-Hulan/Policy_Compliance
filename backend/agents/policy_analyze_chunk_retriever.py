@@ -1,12 +1,11 @@
-# import google.generativeai as genai
+import google.generativeai as genai
 from db.connection import get_db
 import os
-from google import genai
 
 class PolicyAnalyzeRetriever:
     def __init__(self):
-        self.client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
-        self.model = "gemini-embedding-001"
+        genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+        self.model = "models/embedding-001"
 
     def retrieve_for_embeddings(self, embeddings, safe_session_id, top_k=5):
         print(f"Retrieving chunks for multiple embeddings in temp_retriever.")

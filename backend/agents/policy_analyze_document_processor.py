@@ -3,7 +3,7 @@ from db.connection import get_db
 import os
 import uuid
 import nltk
-from google import genai
+import google.generativeai as genai
 from nltk.tokenize import sent_tokenize
 from dotenv import load_dotenv
 
@@ -19,8 +19,8 @@ load_dotenv()
 class AnalyzeDocumentProcessorTemp:
     def __init__(self):
         print("Initializing DocumentProcessorTemp")
-        self.client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
-        self.model = "gemini-embedding-001"
+        genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+        self.model = "models/embedding-001"
 
     def chunk_text(self, text, sentences_per_chunk=15, overlap=3):
         """Split text into overlapping chunks of sentences."""
@@ -72,11 +72,12 @@ class AnalyzeDocumentProcessorTemp:
 
                 try:
                     # Get embedding
-                    result = self.client.models.embed_content(
+                    embedding = genai.embed_content(
                         model=self.model,
-                        contents=[clean_chunk]
-                    )
-                    embedding = [float(x) for x in result.embeddings[0].values]
+                        content=clean_chunk,
+                        task_type="retrieval_document"
+                    )["embedding"]
+                    embedding = [float(x) for x in embedding]
 
                     # Save to DB
                     doc_id = str(uuid.uuid4())

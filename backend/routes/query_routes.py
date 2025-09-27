@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify
 from agents.query_analyzer import QueryAnalyzer
 from agents.chuck_retriever import Retriever
 from utils.prompts import MAIN_PROMPT
-from langchain_openai import ChatOpenAI
+from langchain.chat_models import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
 from dotenv import load_dotenv
 from utils.supabase_client import supabase
