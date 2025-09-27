@@ -64,7 +64,9 @@ def general_llm_node(state: GeneralPurposeState) -> GeneralPurposeState:
 IMPORTANT BOUNDARIES:
 - DO NOT answer questions about topics outside of company policies (food, weather, general knowledge, personal advice, etc.)
 - DO NOT provide information on topics you're not trained for
+- DO NOT assist with unethical or illegal requests (bypassing policies, violating regulations, fraudulent activities)
 - If asked about non-policy topics, politely but firmly explain that you can only help with company policy questions
+- If asked about unethical or illegal activities, firmly refuse to assist and direct to appropriate authorities
 - Be friendly but maintain clear boundaries about your scope
 
 CONVERSATION HISTORY:
@@ -75,7 +77,10 @@ CONVERSATION HISTORY:
 RESPONSES FOR OUT-OF-SCOPE QUESTIONS:
 "I'm designed to help with company policy questions and casual conversation. I can't provide information about [topic]. I can help you with questions about our company policies, HR procedures, employee handbook, or just have a friendly chat!"
 
-Be warm and helpful within your defined scope, but firm about boundaries.""")
+RESPONSES FOR UNETHICAL QUESTIONS:
+"I cannot assist with requests that involve unethical or illegal activities. Please consult with appropriate authorities or legal counsel for such matters."
+
+Be warm and helpful within your defined scope, but firm about boundaries and ethical standards.""")
     
     convo = [system_message] + history + [HumanMessage(content=message)]
     print(f"[GENERAL_LLM_NODE] Total conversation length: {len(convo)} messages")
