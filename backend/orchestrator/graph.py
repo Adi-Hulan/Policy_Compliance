@@ -25,19 +25,25 @@ class OrchestratorState(TypedDict, total=False):
     llm_response: BaseMessage
     response: str
 
-# --- In-memory session store ---
-SESSIONS: Dict[str, List[BaseMessage]] = {}
-
-def get_history(session_id: str) -> List[BaseMessage]:
-    if session_id not in SESSIONS:
-        SESSIONS[session_id] = [SystemMessage(content=MAIN_PROMPT)]
-    return SESSIONS[session_id]
+# --- Session management moved to orchestrator ---
+def get_history_from_orchestrator(state: OrchestratorState) -> List[BaseMessage]:
+    """Get history from orchestrator's session management."""
+    orchestrator = state.get("orchestrator")
+    if orchestrator:
+        return orchestrator.get_session_history(state["session_id"])
+    else:
+        # Fallback for backward compatibility
+        from .orchestrator import get_orchestrator
+        return get_orchestrator().get_session_history(state["session_id"])
 
 # --- Helper to serialize LangChain messages ---
 def serialize_messages(messages: List[BaseMessage]) -> List[Dict[str, str]]:
     return [{"type": type(msg).__name__, "content": msg.content} for msg in messages]
 
 # --- Orchestrator nodes ---
+# Note: Intent classification is handled by the main orchestrator before routing to graphs
+# Graph nodes focus on their specific functionality without caring about intent
+
 def input_node(state: OrchestratorState) -> OrchestratorState:
     print(f"[INPUT_NODE] Starting with state keys: {list(state.keys())}")
     print(f"[INPUT_NODE] Session ID: {state.get('session_id')}")
@@ -52,7 +58,7 @@ def input_node(state: OrchestratorState) -> OrchestratorState:
 
 def session_history_node(state: OrchestratorState) -> OrchestratorState:
     print(f"[SESSION_HISTORY_NODE] Getting history for session: {state['session_id']}")
-    history = get_history(state["session_id"])
+    history = get_history_from_orchestrator(state)
     print(f"[SESSION_HISTORY_NODE] Retrieved {len(history)} messages from history")
     print(f"[SESSION_HISTORY_NODE] History types: {[type(msg).__name__ for msg in history]}")
     return {"history": history}
@@ -106,17 +112,26 @@ def llm_node(state: OrchestratorState) -> OrchestratorState:
 def session_update_node(state: OrchestratorState) -> OrchestratorState:
     session_id = state["session_id"]
     print(f"[SESSION_UPDATE_NODE] Updating session: {session_id}")
-    history = get_history(session_id)
-    print(f"[SESSION_UPDATE_NODE] Current history length: {len(history)}")
     
-    human_msg = HumanMessage(content=state["full_user_message"])
-    ai_msg = AIMessage(content=state.get("response", ""))
-    print(f"[SESSION_UPDATE_NODE] Adding HumanMessage and AIMessage")
+    # Use orchestrator's session management
+    orchestrator = state.get("orchestrator")
+    if orchestrator:
+        orchestrator.update_session_history(
+            session_id, 
+            state["full_user_message"], 
+            state.get("response", "")
+        )
+        print(f"[SESSION_UPDATE_NODE] Updated session via orchestrator")
+    else:
+        # Fallback for backward compatibility
+        from .orchestrator import get_orchestrator
+        get_orchestrator().update_session_history(
+            session_id, 
+            state["full_user_message"], 
+            state.get("response", "")
+        )
+        print(f"[SESSION_UPDATE_NODE] Updated session via fallback orchestrator")
     
-    history.append(human_msg)
-    history.append(ai_msg)
-    SESSIONS[session_id] = history
-    print(f"[SESSION_UPDATE_NODE] Updated history length: {len(history)}")
     return {}
 
 def output_node(state: OrchestratorState) -> Dict[str, Any]:
@@ -131,7 +146,7 @@ def output_node(state: OrchestratorState) -> Dict[str, Any]:
     history_serialized = []
     if session_id:
         print(f"[OUTPUT_NODE] Serializing history for session: {session_id}")
-        history = get_history(session_id)
+        history = get_history_from_orchestrator(state)
         print(f"[OUTPUT_NODE] History to serialize has {len(history)} messages")
         history_serialized = [{"type": type(msg).__name__, "content": msg.content} 
                               for msg in history]
@@ -275,7 +290,7 @@ def document_retriever_node(state: OrchestratorState) -> OrchestratorState:
         return {"doc_context": []}
 
 # --- Build the state graph ---
-def build_case1_graph():
+def build_company_policy_graph():
     graph = StateGraph(OrchestratorState)
     graph.add_node("input", input_node)
     graph.add_node("history", session_history_node)
@@ -393,37 +408,37 @@ def build_case1_graph():
     return graph.compile()
 
 # --- Run the graph safely ---
-def run_case1(session_id: str, message: str, document_url: str = None) -> str:
-    print(f"[RUN_CASE1] Starting orchestrator with session_id: {session_id}")
-    print(f"[RUN_CASE1] Message: {message[:100]}...")
+def run_company_policy(session_id: str, message: str, document_url: str = None) -> str:
+    print(f"[RUN_COMPANY_POLICY] Starting company policy graph with session_id: {session_id}")
+    print(f"[RUN_COMPANY_POLICY] Message: {message[:100]}...")
     if document_url:
-        print(f"[RUN_CASE1] Document URL detected: {document_url}")
+        print(f"[RUN_COMPANY_POLICY] Document URL detected: {document_url}")
     
     try:
-        app = build_case1_graph()
+        app = build_company_policy_graph()
         initial_state: OrchestratorState = {
             "session_id": session_id,
             "message": message,
             "document_url": document_url,
         }
-        print(f"[RUN_CASE1] Initial state: {list(initial_state.keys())}")
+        print(f"[RUN_COMPANY_POLICY] Initial state: {list(initial_state.keys())}")
         
-        print("[RUN_CASE1] Invoking graph...")
+        print("[RUN_COMPANY_POLICY] Invoking graph...")
         final_state = app.invoke(initial_state)
-        print(f"[RUN_CASE1] Final state keys: {list(final_state.keys())}")
-        print(f"[RUN_CASE1] Final state types: {[(k, type(v)) for k, v in final_state.items()]}")
+        print(f"[RUN_COMPANY_POLICY] Final state keys: {list(final_state.keys())}")
+        print(f"[RUN_COMPANY_POLICY] Final state types: {[(k, type(v)) for k, v in final_state.items()]}")
         
         # Extract just the content string like the old route
         # The output_node puts the response in "content" key, not "response"
         content = final_state.get("content", "") or final_state.get("response", "")
-        print(f"[RUN_CASE1] Extracted content: {repr(content[:100]) if content else 'None'}")
-        print(f"[RUN_CASE1] Returning content type: {type(content)}")
-        print(f"[RUN_CASE1] Content length: {len(content) if content else 0}")
+        print(f"[RUN_COMPANY_POLICY] Extracted content: {repr(content[:100]) if content else 'None'}")
+        print(f"[RUN_COMPANY_POLICY] Returning content type: {type(content)}")
+        print(f"[RUN_COMPANY_POLICY] Content length: {len(content) if content else 0}")
         
         return content
         
     except Exception as e:
-        print(f"[RUN_CASE1] ERROR: {str(e)}")
+        print(f"[RUN_COMPANY_POLICY] ERROR: {str(e)}")
         import traceback
         traceback.print_exc()
         return f"Error processing request: {str(e)}"

@@ -1,6 +1,5 @@
 from flask import Blueprint, request, jsonify, Response
-from orchestrator.graph import build_case1_graph
-from orchestrator.executor import create_stream_generator
+from orchestrator.orchestrator import get_orchestrator
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -30,15 +29,11 @@ def analyze_stream():
         if document_url:
             print(f"[ROUTE] Document URL provided: {document_url}")
 
-        # Build the graph and create initial state
-        print(f"[ROUTE] Building case1 graph...")
-        graph = build_case1_graph()
-        initial_state = {"session_id": session_id, "message": msg, "document_url": document_url}
-        print(f"[ROUTE] Created initial state with keys: {list(initial_state.keys())}")
-
-        # Create the stream generator using the new executor module
-        print(f"[ROUTE] Creating stream generator...")
-        stream_generator = create_stream_generator(graph, initial_state)
+        # Get orchestrator and create stream generator
+        print(f"[ROUTE] Getting orchestrator...")
+        orchestrator = get_orchestrator()
+        print(f"[ROUTE] Creating stream generator via orchestrator...")
+        stream_generator = orchestrator.create_stream_generator(session_id, msg, document_url)
         print(f"[ROUTE] Stream generator created, returning SSE response")
 
         # Return a Flask Response streaming SSE

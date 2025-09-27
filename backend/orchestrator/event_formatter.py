@@ -115,6 +115,9 @@ def format_event_for_ui(event: Dict[str, Any], initial_state: Dict[str, Any]) ->
         print(f"[EVENT_FORMATTER] Processing event: {ev_type} from {node_name}")
         print(f"[EVENT_FORMATTER] Event keys: {list(event.keys())}")
         print(f"[EVENT_FORMATTER] Data section keys: {list(data_section.keys()) if isinstance(data_section, dict) else 'not dict'}")
+        
+        # Note: Intent classification is handled by the main orchestrator before routing
+        # Graph nodes don't do intent classification, they just execute their specific logic
 
         if ev_type == "on_chat_model_stream":
             print(f"[EVENT_FORMATTER] Processing LLM stream event from {node_name}")
