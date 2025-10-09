@@ -3,14 +3,13 @@ from db.connection import get_db
 import os
 from google import genai
 
-class Retriever:
+class TempRetriever:
     def __init__(self):
-        # Initialize client using API key from environment
         self.client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
         self.model = "gemini-embedding-001"
 
-    def retrieve_chunks(self, question, top_k=5):
-        print(f"Retrieved Question inside the chunk retriever: {question}")
+    def retrieve_chunks(self, question, safe_session_id, top_k=5):
+        print(f"Retrived Question inside temp_retriever: {question}")
         """
         Returns top-k most relevant chunks from the database for a question.
         """
@@ -21,21 +20,20 @@ class Retriever:
                 contents=[question]  # must be a list
             )
 
-            # Extract the embedding vector (first item because we passed one text)
+            # Ensure it's float list
             question_embedding = result.embeddings[0].values
 
-            print(f"Question Embedding (first 5 dims): {question_embedding[:5]}...")
+            print(f"Question Embedding inside the temp chunk retriever (first 5 dims): {question_embedding[:5]}...")
 
             # Ensure it's a float list
             question_embedding = [float(x) for x in question_embedding]
-
             # 2. Query pgvector
             conn = get_db()
             cur = conn.cursor()
 
-            query = """
+            query = f"""
                 SELECT id, content, embedding <=> %s::vector AS distance
-                FROM documents
+                FROM temp_documents_{safe_session_id}
                 ORDER BY distance
                 LIMIT %s
             """
@@ -46,7 +44,6 @@ class Retriever:
 
             # 3. Format results
             chunks = [{"id": r[0], "content": r[1], "distance": r[2]} for r in results]
-            print(f"Retrieved {len(chunks)} chunks from DB.")
             return {"status": "success", "chunks": chunks}
 
         except Exception as e:

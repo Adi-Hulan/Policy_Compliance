@@ -1,18 +1,46 @@
-from flask import Blueprint, request, jsonify
-from agents.query_analyzer import QueryAnalyzer
-from agents.chuck_retriever import Retriever
+from flask import Blueprint, request, jsonify, Response
+from orchestrator.orchestrator import get_orchestrator
+from dotenv import load_dotenv
+
+load_dotenv()
 
 query_bp = Blueprint("queries", __name__)
-analyzer = QueryAnalyzer()
-retriever = Retriever()
 
-@query_bp.route("/analyze", methods=["POST"])
-def analyze_query():
-    data = request.json
-    if not data or "query" not in data:
-        return jsonify({"error": "Query not provided"}), 400
 
-    print(f"query recived : {data}")
-    relevent_chunks = retriever.retrieve_chunks(data["query"])
-    response = analyzer.process(data["query"],relevent_chunks)
-    return jsonify(response)
+@query_bp.route("/analyze/stream", methods=["POST"])
+def analyze_stream():
+    """Stream events from the orchestrator graph as Server-Sent Events (SSE).
+
+    This preserves the logic of the existing `/analyze` route but exposes
+    intermediate events emitted by the graph's `astream_events` API so the
+    client can render streaming updates.
+    """
+    print("=" * 80)
+    print("[ROUTE] /analyze/stream endpoint called")
+    print("=" * 80)
+    
+    try:
+        data = request.json
+        session_id = data["session_id"]
+        msg = data["message"]
+        document_url = data.get("document_url")
+
+        print(f"[ROUTE] Parsed request - Session: {session_id}, Message: {msg[:100]}...")
+        if document_url:
+            print(f"[ROUTE] Document URL provided: {document_url}")
+
+        # Get orchestrator and create stream generator
+        print(f"[ROUTE] Getting orchestrator...")
+        orchestrator = get_orchestrator()
+        print(f"[ROUTE] Creating stream generator via orchestrator...")
+        stream_generator = orchestrator.create_stream_generator(session_id, msg, document_url)
+        print(f"[ROUTE] Stream generator created, returning SSE response")
+
+        # Return a Flask Response streaming SSE
+        return Response(stream_generator, mimetype='text/event-stream')
+
+    except Exception as e:
+        print(f"[ROUTE] ERROR: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
