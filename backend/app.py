@@ -1,3 +1,4 @@
+
 from flask import Flask
 from flask_cors import CORS
 from routes.document_routes import document_bp
@@ -25,6 +26,7 @@ def create_app():
 
     # Register authentication middleware
     register_auth_middleware(app)
+
 
     return app
 

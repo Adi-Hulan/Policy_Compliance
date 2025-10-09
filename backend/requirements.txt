@@ -12,3 +12,4 @@ nltk
 langgraph
 requests
 langchain-google-genai
+flask-cors
