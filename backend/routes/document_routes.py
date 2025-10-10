@@ -6,6 +6,7 @@ import requests
 from agents.policy_analyze_document_processor import AnalyzeDocumentProcessorTemp
 from agents.policy_analyze_chunk_retriever import PolicyAnalyzeRetriever
 from google import genai
+from middleware.auth import require_auth
 
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 document_bp = Blueprint("documents", __name__)
@@ -14,6 +15,7 @@ doc_processor = AnalyzeDocumentProcessorTemp()
 policyAnalyzeRetriever = PolicyAnalyzeRetriever()
 
 @document_bp.route("/upload", methods=["POST"])
+@require_auth
 def upload_document():
     if "file" not in request.files:
         return jsonify({"error": "No file provided"}), 400
@@ -30,6 +32,7 @@ def upload_document():
     return jsonify(result)
 
 @document_bp.route("/analyze", methods=["POST"])
+@require_auth
 def analyze_document():
     data = request.json
     document_url = data.get("document_url")

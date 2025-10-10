@@ -1,3 +1,4 @@
+
 from typing import Dict, Any, List, Optional
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage, AIMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -10,9 +11,7 @@ import asyncio
 import queue as _queue
 import threading
 import json
-
-# --- Global session store ---
-SESSIONS: Dict[str, List[BaseMessage]] = {}
+from db.repositories.chat_repository import ChatRepository
 
 # --- Intent classification prompts ---
 INTENT_CLASSIFICATION_PROMPT = """
@@ -44,9 +43,8 @@ When in doubt, classify as "general" to ensure unrelated questions don't get ans
 class Orchestrator:
     """
     Central orchestrator that classifies user intents and routes to appropriate pipelines.
-    Manages global session context and coordinates between different graph pipelines.
+    Manages persistent session context and coordinates between different graph pipelines.
     """
-    
     def __init__(self):
         self.llm = ChatGoogleGenerativeAI(
             model="gemini-2.5-flash",
@@ -55,22 +53,52 @@ class Orchestrator:
         )
         self.company_policy_graph = None
         self.general_purpose_graph = None
+        self.chat_repo = ChatRepository()
         print("[ORCHESTRATOR] Initialized orchestrator")
-    
-    def get_session_history(self, session_id: str) -> List[BaseMessage]:
-        """Get or create session history."""
-        if session_id not in SESSIONS:
-            SESSIONS[session_id] = [SystemMessage(content="You are a helpful assistant.")]
-            print(f"[ORCHESTRATOR] Created new session: {session_id}")
-        return SESSIONS[session_id]
-    
-    def update_session_history(self, session_id: str, human_message: str, ai_response: str):
-        """Update session history with new conversation."""
-        history = self.get_session_history(session_id)
-        history.append(HumanMessage(content=human_message))
-        history.append(AIMessage(content=ai_response))
-        SESSIONS[session_id] = history
-        print(f"[ORCHESTRATOR] Updated session {session_id} with {len(history)} messages")
+
+    def get_session_history(self, session_id: str, user_id: str) -> List[BaseMessage]:
+        """Load session history from the database."""
+        try:
+            db_messages = self.chat_repo.get_messages(session_id)
+            history = []
+            for msg in db_messages:
+                if msg['role'] == 'user':
+                    history.append(HumanMessage(content=msg['content']))
+                elif msg['role'] == 'assistant':
+                    history.append(AIMessage(content=msg['content']))
+            if not history:
+                history = [SystemMessage(content="You are a helpful assistant.")]
+            return history
+        except Exception as e:
+            print(f"[ORCHESTRATOR] Failed to load history: {e}")
+            return [SystemMessage(content="You are a helpful assistant.")]
+
+    def update_session_history(self, session_id: str, user_id: str, human_message: str, ai_response: str):
+        """Save conversation to the database."""
+        try:
+            # Ensure session exists
+            self.chat_repo.get_or_create_session(
+                session_id=session_id,
+                user_id=user_id,
+                title=human_message[:50] if human_message else "New Chat"
+            )
+            # Save user message
+            self.chat_repo.save_message(
+                session_id=session_id,
+                role='user',
+                content=human_message,
+                metadata=None
+            )
+            # Save assistant response
+            self.chat_repo.save_message(
+                session_id=session_id,
+                role='assistant',
+                content=ai_response,
+                metadata=None
+            )
+            print(f"[ORCHESTRATOR] Saved conversation to database - Session: {session_id}")
+        except Exception as e:
+            print(f"[ORCHESTRATOR] Failed to save history: {e}")
     
     def classify_intent(self, message: str, session_id: str) -> str:
         """Classify user intent using rule-based approach first, then LLM if needed."""
@@ -150,13 +178,13 @@ class Orchestrator:
         print(f"[ORCHESTRATOR] No clear rule-based classification found")
         return None
     
-    def _llm_classification(self, message: str, session_id: str) -> str:
+    def _llm_classification(self, message: str, session_id: str, user_id: Optional[str] = None) -> str:
         """LLM-based intent classification as fallback."""
         print(f"[ORCHESTRATOR] Using LLM for intent classification...")
         
         try:
             # Get session history for context
-            history = self.get_session_history(session_id)
+            history = self.get_session_history(session_id, user_id)
             
             # Create classification prompt
             classification_messages = [
@@ -206,7 +234,7 @@ class Orchestrator:
             print(f"[ORCHESTRATOR] ERROR: Unknown intent '{intent}'")
             raise ValueError(f"Unknown intent: {intent}")
     
-    def create_stream_generator(self, session_id: str, message: str, document_url: Optional[str] = None):
+    def create_stream_generator(self, session_id: str, message: str, document_url: Optional[str] = None, user_id: Optional[str] = None):
         """Create a stream generator that routes through the orchestrator."""
         print("=" * 80)
         print(f"[ORCHESTRATOR] Creating stream generator for session: {session_id}")
@@ -233,6 +261,7 @@ class Orchestrator:
             "document_url": document_url,
             "intent": intent,
             "orchestrator": self,  # Pass orchestrator reference for context access
+            "user_id": user_id,
         }
         
         print(f"[ORCHESTRATOR] Initial state created with keys: {list(initial_state.keys())}")
@@ -247,11 +276,11 @@ class Orchestrator:
         
         return stream_gen
     
-    def get_global_context(self, session_id: str) -> Dict[str, Any]:
+    def get_global_context(self, session_id: str, user_id: Optional[str] = None) -> Dict[str, Any]:
         """Get global context for a session."""
         # This can be extended to include more context like user preferences, 
         # previous intents, document references, etc.
-        history = self.get_session_history(session_id)
+        history = self.get_session_history(session_id, user_id)
         return {
             "session_id": session_id,
             "message_count": len(history),

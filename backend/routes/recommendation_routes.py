@@ -1,10 +1,12 @@
 from flask import Blueprint, request, jsonify
 from agents.recommendation_agent import RecommendationAgent
+from middleware.auth import require_auth
 
 recommendation_bp = Blueprint("recommendations", __name__)
 recommendation_agent = RecommendationAgent()
 
 @recommendation_bp.route("/generate", methods=["POST"])
+@require_auth
 def generate_recommendations():
     """
     Generate recommendations based on violation data
@@ -62,6 +64,7 @@ def generate_recommendations():
         }), 500
 
 @recommendation_bp.route("/summary", methods=["POST"])
+@require_auth
 def get_recommendation_summary():
     """
     Get a summary of recommendations

@@ -14,6 +14,7 @@ from db.connection import get_db
 # --- TypedDict for orchestrator state ---
 class OrchestratorState(TypedDict, total=False):
     session_id: str
+    user_id: str
     message: str
     document_url: str
     safe_session_id: str
@@ -30,11 +31,11 @@ def get_history_from_orchestrator(state: OrchestratorState) -> List[BaseMessage]
     """Get history from orchestrator's session management."""
     orchestrator = state.get("orchestrator")
     if orchestrator:
-        return orchestrator.get_session_history(state["session_id"])
+        return orchestrator.get_session_history(state["session_id"], state.get("user_id"))
     else:
         # Fallback for backward compatibility
         from .orchestrator import get_orchestrator
-        return get_orchestrator().get_session_history(state["session_id"])
+        return get_orchestrator().get_session_history(state["session_id"], state.get("user_id"))
 
 # --- Helper to serialize LangChain messages ---
 def serialize_messages(messages: List[BaseMessage]) -> List[Dict[str, str]]:
@@ -52,6 +53,7 @@ def input_node(state: OrchestratorState) -> OrchestratorState:
         print(f"[INPUT_NODE] Document URL: {state.get('document_url')}")
     assert state.get("session_id"), "session_id required"
     assert state.get("message"), "message required"
+    assert state.get("user_id"), "user_id required"
     safe_session_id = state["session_id"].replace("-", "_")
     print("[INPUT_NODE] Validation passed")
     return {"safe_session_id": safe_session_id}
@@ -100,28 +102,37 @@ def llm_node(state: OrchestratorState) -> OrchestratorState:
     history = state["history"]
     print(f"[LLM_NODE] History has {len(history)} messages")
     print(f"[LLM_NODE] Full user message length: {len(state['full_user_message'])}")
-    
-    # Add system prompt at the beginning of conversation
-    system_message = SystemMessage(content=MAIN_PROMPT)
-    convo = [system_message] + history + [HumanMessage(content=state["full_user_message"])]
-    print(f"[LLM_NODE] Total conversation length: {len(convo)} messages")
-    print("[LLM_NODE] Invoking LLM...")
-    response = _LLM.invoke(convo)
-    print(f"[LLM_NODE] LLM response type: {type(response)}")
-    print(f"[LLM_NODE] Response content length: {len(response.content) if response.content else 0}")
-    # Only return primitive string content
-    return {"response": response.content}
+    try:
+        # Add system prompt at the beginning of conversation
+        system_message = SystemMessage(content=MAIN_PROMPT)
+        convo = [system_message] + history + [HumanMessage(content=state["full_user_message"])]
+        print(f"[LLM_NODE] Total conversation length: {len(convo)} messages")
+        print("[LLM_NODE] Invoking LLM...")
+        response = _LLM.invoke(convo)
+        print(f"[LLM_NODE] LLM response type: {type(response)}")
+        print(f"[LLM_NODE] Response content length: {len(response.content) if response.content else 0}")
+        return {"response": response.content}
+    except Exception as e:
+        print(f"[LLM_NODE] ERROR invoking LLM: {e}")
+        import traceback
+        traceback.print_exc()
+        # Fallback response to keep pipeline moving and allow persistence
+        fallback = "I'm temporarily unavailable to generate a detailed answer, but I've recorded your question."
+        return {"response": fallback}
 
 def session_update_node(state: OrchestratorState) -> OrchestratorState:
     session_id = state["session_id"]
+    user_id = state.get("user_id")
     print(f"[SESSION_UPDATE_NODE] Updating session: {session_id}")
-    
+
     # Use orchestrator's session management
     orchestrator = state.get("orchestrator")
+    user_message = state.get("message", "")  # Only persist the original user query
     if orchestrator:
         orchestrator.update_session_history(
-            session_id, 
-            state["full_user_message"], 
+            session_id,
+            user_id,
+            user_message,
             state.get("response", "")
         )
         print(f"[SESSION_UPDATE_NODE] Updated session via orchestrator")
@@ -129,12 +140,13 @@ def session_update_node(state: OrchestratorState) -> OrchestratorState:
         # Fallback for backward compatibility
         from .orchestrator import get_orchestrator
         get_orchestrator().update_session_history(
-            session_id, 
-            state["full_user_message"], 
+            session_id,
+            user_id,
+            user_message,
             state.get("response", "")
         )
         print(f"[SESSION_UPDATE_NODE] Updated session via fallback orchestrator")
-    
+
     return {}
 
 def output_node(state: OrchestratorState) -> Dict[str, Any]:

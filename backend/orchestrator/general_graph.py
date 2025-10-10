@@ -7,6 +7,7 @@ import os
 # --- TypedDict for general purpose state ---
 class GeneralPurposeState(TypedDict, total=False):
     session_id: str
+    user_id: str
     message: str
     safe_session_id: str
     history: List[BaseMessage]
@@ -22,6 +23,7 @@ def general_input_node(state: GeneralPurposeState) -> GeneralPurposeState:
     print(f"[GENERAL_INPUT_NODE] Message: {state.get('message')}")
     assert state.get("session_id"), "session_id required"
     assert state.get("message"), "message required"
+    assert state.get("user_id"), "user_id required"
     safe_session_id = state["session_id"].replace("-", "_")
     print("[GENERAL_INPUT_NODE] Validation passed")
     return {"safe_session_id": safe_session_id}
@@ -31,11 +33,11 @@ def general_history_node(state: GeneralPurposeState) -> GeneralPurposeState:
     # Use orchestrator's session management
     orchestrator = state.get("orchestrator")
     if orchestrator:
-        history = orchestrator.get_session_history(state["session_id"])
+        history = orchestrator.get_session_history(state["session_id"], state.get("user_id"))
     else:
         # Fallback
         from .orchestrator import get_orchestrator
-        history = get_orchestrator().get_session_history(state["session_id"])
+        history = get_orchestrator().get_session_history(state["session_id"], state.get("user_id"))
     
     print(f"[GENERAL_HISTORY_NODE] Retrieved {len(history)} messages from history")
     print(f"[GENERAL_HISTORY_NODE] History types: {[type(msg).__name__ for msg in history]}")
@@ -53,9 +55,9 @@ def general_llm_node(state: GeneralPurposeState) -> GeneralPurposeState:
     history = state["history"]
     print(f"[GENERAL_LLM_NODE] History has {len(history)} messages")
     print(f"[GENERAL_LLM_NODE] User message: {message[:100]}...")
-    
-    # Create conversation with focused system message
-    system_message = SystemMessage(content="""You are a helpful assistant for a policy compliance system. Your role is strictly limited to:
+    try:
+        # Create conversation with focused system message
+        system_message = SystemMessage(content="""You are a helpful assistant for a policy compliance system. Your role is strictly limited to:
 
 1. CASUAL CONVERSATION: Greetings, small talk, pleasantries (hello, how are you, good morning, etc.)
 2. SYSTEM CAPABILITIES: Explaining what the system can help with regarding company policies
@@ -82,15 +84,19 @@ RESPONSES FOR UNETHICAL QUESTIONS:
 
 Be warm and helpful within your defined scope, but firm about boundaries and ethical standards.""")
     
-    convo = [system_message] + history + [HumanMessage(content=message)]
-    print(f"[GENERAL_LLM_NODE] Total conversation length: {len(convo)} messages")
-    print("[GENERAL_LLM_NODE] Invoking LLM...")
-    
-    response = _LLM.invoke(convo)
-    print(f"[GENERAL_LLM_NODE] LLM response type: {type(response)}")
-    print(f"[GENERAL_LLM_NODE] Response content length: {len(response.content) if response.content else 0}")
-    
-    return {"response": response.content}
+        convo = [system_message] + history + [HumanMessage(content=message)]
+        print(f"[GENERAL_LLM_NODE] Total conversation length: {len(convo)} messages")
+        print("[GENERAL_LLM_NODE] Invoking LLM...")
+        response = _LLM.invoke(convo)
+        print(f"[GENERAL_LLM_NODE] LLM response type: {type(response)}")
+        print(f"[GENERAL_LLM_NODE] Response content length: {len(response.content) if response.content else 0}")
+        return {"response": response.content}
+    except Exception as e:
+        print(f"[GENERAL_LLM_NODE] ERROR invoking LLM: {e}")
+        import traceback
+        traceback.print_exc()
+        fallback = "I'm here to help with policy questions, but I can't generate a response right now."
+        return {"response": fallback}
 
 def general_session_update_node(state: GeneralPurposeState) -> GeneralPurposeState:
     session_id = state["session_id"]
@@ -100,8 +106,9 @@ def general_session_update_node(state: GeneralPurposeState) -> GeneralPurposeSta
     orchestrator = state.get("orchestrator")
     if orchestrator:
         orchestrator.update_session_history(
-            session_id, 
-            state["message"], 
+            session_id,
+            state.get("user_id"),
+            state["message"],
             state.get("response", "")
         )
         print(f"[GENERAL_SESSION_UPDATE_NODE] Updated session via orchestrator")
@@ -109,8 +116,9 @@ def general_session_update_node(state: GeneralPurposeState) -> GeneralPurposeSta
         # Fallback
         from .orchestrator import get_orchestrator
         get_orchestrator().update_session_history(
-            session_id, 
-            state["message"], 
+            session_id,
+            state.get("user_id"),
+            state["message"],
             state.get("response", "")
         )
         print(f"[GENERAL_SESSION_UPDATE_NODE] Updated session via fallback orchestrator")
@@ -130,10 +138,10 @@ def general_output_node(state: GeneralPurposeState) -> Dict[str, Any]:
         print(f"[GENERAL_OUTPUT_NODE] Serializing history for session: {session_id}")
         orchestrator = state.get("orchestrator")
         if orchestrator:
-            history = orchestrator.get_session_history(session_id)
+            history = orchestrator.get_session_history(session_id, state.get("user_id"))
         else:
             from .orchestrator import get_orchestrator
-            history = get_orchestrator().get_session_history(session_id)
+            history = get_orchestrator().get_session_history(session_id, state.get("user_id"))
         
         print(f"[GENERAL_OUTPUT_NODE] History to serialize has {len(history)} messages")
         history_serialized = [{"type": type(msg).__name__, "content": msg.content} 
