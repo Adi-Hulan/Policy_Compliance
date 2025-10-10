@@ -1,0 +1,6 @@
+*.pyc
+*.h
+*.py
+*.typed
+*.hash
+/backend/venv
