@@ -13,3 +13,9 @@ langgraph
 requests
 langchain-google-genai
 flask-cors
+torch
+torchvision
+torchaudio
+transformers
+pillow
+pdf2image
