@@ -64,7 +64,28 @@ def analyze_document():
     try:
         # Process into chunks + embeddings
         vector_store = doc_processor.process(tmp_file_path, safe_session_id)
-        chunk_embeddings = vector_store["chunk_embeddings"]
+
+        if not isinstance(vector_store, dict):
+            return jsonify({
+                "agent": "AnalyzeDocumentProcessor",
+                "status": "error",
+                "result": "Unexpected response from document processor"
+            }), 500
+
+        if vector_store.get("status") != "success":
+            return jsonify({
+                "agent": vector_store.get("agent", "AnalyzeDocumentProcessor"),
+                "status": vector_store.get("status", "error"),
+                "result": vector_store.get("result", "Document processing failed")
+            }), 400
+
+        chunk_embeddings = vector_store.get("chunk_embeddings", [])
+        if not chunk_embeddings:
+            return jsonify({
+                "agent": vector_store.get("agent", "AnalyzeDocumentProcessor"),
+                "status": "error",
+                "result": "No text extracted from document"
+            }), 400
 
         retrieval_results = policyAnalyzeRetriever.retrieve_for_embeddings(
             [c["embedding"] for c in chunk_embeddings],

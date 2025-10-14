@@ -35,7 +35,7 @@ class DocumentProcessor:
             text = extract_text_from_pdf(file_path)
             print(f"Length of text in characters: {len(text)}")
             if not text.strip():
-                return {"agent": "DocumentProcessor", "status": "error", "result": "No text found in PDF"}
+                return {"agent": "DocumentProcessor", "status": "error", "result": "No text found in document"}
             
             chunks = self.chunk_text(text)
             
