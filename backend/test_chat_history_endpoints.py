@@ -12,9 +12,11 @@ Note: Requires Flask server running locally.
 import os
 import jwt
 import requests
+import pytest
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from db.repositories.chat_repository import ChatRepository
+import pytest
 
 load_dotenv()
 
@@ -31,6 +33,18 @@ def generate_token(user_id: str, email: str = "test@example.com") -> str:
         "exp": datetime.utcnow() + timedelta(hours=1),
     }
     return jwt.encode(payload, jwt_secret, algorithm="HS256")
+
+
+@pytest.fixture
+def token():
+    user_id = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+    return generate_token(user_id)
+
+
+@pytest.fixture
+def session_id(token):
+    user_id = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+    return setup_sample_data(user_id)
 
 
 def setup_sample_data(user_id: str) -> str:

@@ -1,31 +1,45 @@
+"""
+Event Formatting Module
+
+Converts raw LangGraph events into UI-friendly payloads for SSE streaming.
+Uses a unified payload structure for consistency and simpler frontend integration.
+"""
+
 import os
 import json
+import re
 from typing import Dict, Any, List, Optional
 
 
-def _truncate(text, limit=140):
-    """Truncate text to a specified limit."""
+# --- Utility Functions ---
+def _truncate(text: Any, limit: int = 140) -> str:
+    """Truncate text to a specified limit with ellipsis."""
     if text is None:
         return ""
     text = str(text)
-    return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
+    return text if len(text) <= limit else text[:limit - 1].rstrip() + "…"
 
 
 def _safe_session(value: str) -> str:
-    """Convert session ID to safe format."""
+    """Convert session ID to safe format (replace hyphens with underscores)."""
     return (value or "").replace("-", "_")
 
 
-def _extract_text(blob):
-    """Extract text content from various data structures."""
+def _extract_text(blob: Any) -> str:
+    """
+    Extract text content from various data structures.
+    Handles strings, dicts, lists, and objects with content attributes.
+    """
     if blob is None:
         return ""
     if isinstance(blob, str):
         return blob
     if isinstance(blob, dict):
+        # Try common content keys
         for key in ("content", "text", "response"):
             if key in blob:
                 return _extract_text(blob[key])
+        # Concatenate all values
         parts = []
         for val in blob.values():
             chunk = _extract_text(val)
@@ -39,301 +53,467 @@ def _extract_text(blob):
     return str(blob)
 
 
-def _extract_count(value):
-    """Extract count from various data structures."""
+def _extract_count(value: Any) -> Optional[int]:
+    """Extract count from collections (list, tuple, set, dict)."""
     if isinstance(value, (list, tuple, set, dict)):
         return len(value)
     return None
 
 
-def _build_stage_payload(node: str, message: str, **extra):
-    """Build a stage payload for UI events."""
-    payload = {"type": "stage", "node": node, "message": message}
-    if extra:
-        payload.update({k: v for k, v in extra.items() if v is not None})
-    return payload
+def _extract_token(data_section: Any) -> str:
+    """
+    Extract streaming token from LLM data section.
+    Handles various response formats from different LLM providers.
+    Removes citation markers for clean streaming display.
+    """
+    if isinstance(data_section, dict):
+        # Get chunk or delta
+        chunk = data_section.get("chunk") or data_section.get("delta")
+        if chunk is None:
+            print(f"[TOKEN_EXTRACT] ✗ No chunk/delta in data_section: {list(data_section.keys())}", flush=True)
+            return ""
 
-
-def _extract_token(data_section):
-    """Extract token from LLM streaming data."""
-    if not isinstance(data_section, dict):
-        return ""
-    chunk = data_section.get("chunk") or data_section.get("delta")
-    if chunk is None:
-        return ""
+    # Handle string chunks
     if isinstance(chunk, str):
-        return chunk
+        # Remove citation markers for clean streaming
+        clean_chunk = re.sub(r'\[SOURCE:[^\]]+\]', '', chunk)
+        print(f"[TOKEN_EXTRACT] ✓ String chunk: '{chunk}' -> clean: '{clean_chunk}'")
+        return clean_chunk
+
+    # Handle dict chunks
     if isinstance(chunk, dict):
         content = chunk.get("content")
+
+        # Handle list content (multi-part)
         if isinstance(content, list):
-            return "".join(
+            token = "".join(
                 part.get("text", "") if isinstance(part, dict) else str(part)
                 for part in content
             )
+            # Remove citation markers
+            clean_token = re.sub(r'\[SOURCE:[^\]]+\]', '', token)
+            print(f"[TOKEN_EXTRACT] ✓ List content chunk: '{token}' -> clean: '{clean_token}'")
+            return clean_token
+
+        # Handle string content
         if isinstance(content, str):
-            return content
+            # Remove citation markers
+            clean_content = re.sub(r'\[SOURCE:[^\]]+\]', '', content)
+            print(f"[TOKEN_EXTRACT] ✓ String content chunk: '{content}' -> clean: '{clean_content}'")
+            return clean_content
+
+        # Handle text field
         if "text" in chunk:
-            return str(chunk["text"])
+            token = str(chunk["text"])
+            # Remove citation markers
+            clean_token = re.sub(r'\[SOURCE:[^\]]+\]', '', token)
+            print(f"[TOKEN_EXTRACT] ✓ Text field chunk: '{token}' -> clean: '{clean_token}'")
+            return clean_token
+
+    # Handle objects with content/text attributes
     if hasattr(chunk, "content"):
-        return _extract_text(chunk.content)
+        token = _extract_text(chunk.content)
+        # Remove citation markers
+        clean_token = re.sub(r'\[SOURCE:[^\]]+\]', '', token)
+        print(f"[TOKEN_EXTRACT] ✓ Object content: '{token}' -> clean: '{clean_token}'")
+        return clean_token
     if hasattr(chunk, "text"):
-        return str(chunk.text)
-    return _extract_text(chunk)
+        token = str(chunk.text)
+        # Remove citation markers
+        clean_token = re.sub(r'\[SOURCE:[^\]]+\]', '', token)
+        print(f"[TOKEN_EXTRACT] ✓ Object text: '{token}' -> clean: '{clean_token}'")
+        return clean_token
+
+    token = _extract_text(chunk)
+    # Remove citation markers
+    clean_token = re.sub(r'\[SOURCE:[^\]]+\]', '', token)
+    print(f"[TOKEN_EXTRACT] ✓ Fallback extraction: '{token}' -> clean: '{clean_token}'")
+    return clean_token
 
 
-def _maybe_get_state(data_section: dict):
-    """Extract state from data section."""
+def _maybe_get_state(data_section: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Extract state dict from data section.
+    Tries common state keys.
+    """
     if not isinstance(data_section, dict):
         return {}
+
     for key in ("state", "new_state", "updated_state"):
         state = data_section.get(key)
         if isinstance(state, dict):
             return state
+
     return {}
 
 
-def format_event_for_ui(event: Dict[str, Any], initial_state: Dict[str, Any]) -> List[Dict[str, Any]]:
+# --- Data Extraction Layer ---
+def extract_event_data(event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """
-    Convert a raw LangGraph event into UI-friendly payloads.
-    
+    Extract basic data from LangGraph events.
+    Returns normalized data structure for UI mapping.
+
     Args:
-        event: Raw event dict from LangGraph
-        initial_state: Initial state used for the graph execution
-        
+        event: Raw event dict from LangGraph.astream_events()
+
     Returns:
-        List of UI payloads to send to the client
+        Dict with normalized event data or None if unhandled
+    """
+    ev_type = event.get("event")
+    node_name = (event.get("name") or "").lower()
+    data_section = event.get("data") or {}
+
+    # LLM streaming events
+    if ev_type == "on_chat_model_stream":
+        token = _extract_token(data_section)
+        if token:
+            print(f"[EVENT_EXTRACT] ✓ LLM STREAM: node={node_name}, token='{token}'", flush=True)
+            return {
+                "event_type": "llm_stream",
+                "node": node_name,
+                "token": token
+            }
+        else:
+            print(f"[EVENT_EXTRACT] ✗ LLM STREAM: no token extracted from {data_section}", flush=True)
+
+    elif ev_type == "on_chat_model_end":
+        final_text = _extract_text(data_section.get("output") or data_section)
+        if final_text:
+            print(f"[EVENT_EXTRACT] ✓ LLM END: node={node_name}, content_length={len(final_text)}")
+            return {
+                "event_type": "llm_final",
+                "node": node_name,
+                "content": final_text
+            }
+
+    # Chain lifecycle events
+    elif ev_type in ("on_chain_start", "on_chain_end"):
+        output_section = data_section.get("output") if isinstance(data_section, dict) else None
+        state_snapshot = _maybe_get_state(data_section)
+
+        return {
+            "event_type": "chain_lifecycle",
+            "lifecycle_type": ev_type,
+            "node": node_name,
+            "output": output_section,
+            "state": state_snapshot,
+            "raw_data": data_section
+        }
+
+    return None
+
+
+# --- UI Message Mapping Layer ---
+UI_MESSAGES = {
+    "input": {
+        "start": "Validating session & user input…",
+        "end": "Session validated"
+    },
+    "history": {
+        "end": "Fetched {count} messages from history"
+    },
+    "doc_download": {
+        "start": "Downloading document from {url}",
+        "end": "Document downloaded"
+    },
+    "doc_process": {
+        "start": "Processing downloaded document…",
+        "end": "Document chunks prepared for retrieval"
+    },
+    "policy_retriever": {
+        "end": "Retrieved {count} policy chunks"
+    },
+    "doc_retriever": {
+        "end": "Retrieved {count} document chunks"
+    },
+    "context_combine": {
+        "end": "Combining policy and document context"
+    },
+    "llm": {
+        "start": "Generating response with LLM…",
+    },
+    "session_update": {
+        "end": "Appending messages to session history"
+    },
+    "output": {
+        "end": "Response ready"
+    }
+}
+
+# Map node names to UI message keys
+NODE_TO_UI_KEY = {
+    "input": "input",
+    "input_node": "input",
+    "history": "history", 
+    "session_history_node": "history",
+    "doc_download": "doc_download",
+    "document_download_node": "doc_download",
+    "doc_process": "doc_process",
+    "document_processing_node": "doc_process",
+    "policy_retriever": "policy_retriever",
+    "policy_retriever_node": "policy_retriever",
+    "doc_retriever": "doc_retriever",
+    "document_retriever_node": "doc_retriever",
+    "context_combine": "context_combine",
+    "context_combination_node": "context_combine",
+    "llm": "llm",
+    "llm_node": "llm",
+    "session_update": "session_update",
+    "session_update_node": "session_update",
+    "output": "output",
+    "output_node": "output"
+}
+
+
+def map_to_ui_payload(extracted_data: Dict[str, Any], initial_state: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """
+    Map extracted event data to UI-friendly payloads.
+    Maintains exact same output format as original formatter.
+
+    Args:
+        extracted_data: Normalized data from extract_event_data()
+        initial_state: Initial state used for the graph execution
+
+    Returns:
+        List of UI payloads compatible with frontend
     """
     payloads = []
+    event_type = extracted_data["event_type"]
+    node = extracted_data["node"]
     
-    try:
-        node_name = (event.get("name") or "").lower()
-        ev_type = event.get("event")
-        data_section = event.get("data") or {}
-        state_snapshot = _maybe_get_state(data_section)
-        output_section = data_section.get("output") if isinstance(data_section, dict) else None
-        
-        print(f"[EVENT_FORMATTER] Processing event: {ev_type} from {node_name}")
-        print(f"[EVENT_FORMATTER] Event keys: {list(event.keys())}")
-        print(f"[EVENT_FORMATTER] Data section keys: {list(data_section.keys()) if isinstance(data_section, dict) else 'not dict'}")
-        
-        # Note: Intent classification is handled by the main orchestrator before routing
-        # Graph nodes don't do intent classification, they just execute their specific logic
+    # Get UI message key (handles node name variants)
+    ui_key = NODE_TO_UI_KEY.get(node, node)
 
-        if ev_type == "on_chat_model_stream":
-            print(f"[EVENT_FORMATTER] Processing LLM stream event from {node_name}")
-            token = _extract_token(data_section)
-            if token:
-                payloads.append({"type": "llm_stream", "node": node_name, "content": token})
-                print(f"[EVENT_FORMATTER] Generated LLM stream payload with token: {token[:50]}...")
+    # LLM streaming
+    if event_type == "llm_stream":
+        token = extracted_data["token"]
+        payload = {
+            "type": "llm_stream",
+            "category": "content",
+            "content": token,
+            "message": "Generating response..."
+        }
+        print(f"[UI_PAYLOAD] ✓ LLM STREAM payload: '{token}'")
+        payloads.append(payload)
 
-        elif ev_type == "on_chat_model_end":
-            print(f"[EVENT_FORMATTER] Processing LLM end event from {node_name}")
-            final_text = _extract_text(output_section or data_section)
-            if final_text:
-                payloads.append({"type": "llm_final", "node": node_name, "content": final_text})
-                print(f"[EVENT_FORMATTER] Generated LLM final payload with text: {final_text[:100]}...")
+    elif event_type == "llm_final":
+        content = extracted_data["content"]
+        payload = {
+            "type": "llm_final",
+            "category": "content",
+            "content": content,
+            "message": "Response complete"
+        }
+        print(f"[UI_PAYLOAD] ✓ LLM FINAL payload: length={len(content)}")
+        payloads.append(payload)
 
-        elif node_name in ("input", "input_node"):
-            print(f"[EVENT_FORMATTER] Processing input node event: {ev_type}")
-            if ev_type == "on_chain_start":
-                payloads.append(
-                    _build_stage_payload(
-                        "input",
-                        "Validating session & user input…",
-                        session=_safe_session(initial_state.get("session_id")),
-                        user_message=_truncate(initial_state.get("message"), 120),
-                    )
-                )
-                print(f"[EVENT_FORMATTER] Generated input start payload")
-            elif ev_type == "on_chain_end":
-                safe_id = None
-                if isinstance(output_section, dict):
-                    safe_id = output_section.get("safe_session_id")
-                if not safe_id:
-                    safe_id = _safe_session(initial_state.get("session_id"))
-                payloads.append(
-                    _build_stage_payload(
-                        "input",
-                        "Session validated",
-                        session=safe_id,
-                    )
-                )
-                print(f"[EVENT_FORMATTER] Generated input end payload with safe_id: {safe_id}")
+    # Chain lifecycle events
+    elif event_type == "chain_lifecycle":
+        lifecycle_type = extracted_data["lifecycle_type"]
+        output = extracted_data["output"]
+        state = extracted_data["state"]
+        raw_data = extracted_data["raw_data"]
 
-        elif node_name in ("history", "session_history_node") and ev_type == "on_chain_end":
-            print(f"[EVENT_FORMATTER] Processing history node end event")
-            history = None
-            if isinstance(output_section, dict):
-                history = output_section.get("history")
-            if history is None and state_snapshot:
-                history = state_snapshot.get("history")
-            count = _extract_count(history) or 0
-            payloads.append(
-                _build_stage_payload(
-                    "history",
-                    f"Fetched {count} messages from history",
-                    count=count,
-                )
-            )
-            print(f"[EVENT_FORMATTER] Generated history payload with {count} messages")
+        # Get UI message template
+        node_messages = UI_MESSAGES.get(ui_key, {})
+        is_start = lifecycle_type == "on_chain_start"
+        message_key = "start" if is_start else "end"
+        template = node_messages.get(message_key)
 
-        elif node_name in ("doc_download", "document_download_node"):
-            if ev_type == "on_chain_start":
-                url = initial_state.get("document_url") or state_snapshot.get("document_url")
-                if url:
-                    payloads.append(
-                        _build_stage_payload(
-                            "doc_download",
-                            f"Downloading document from URL {_truncate(url, 100)}",
-                        )
-                    )
-            elif ev_type == "on_chain_end":
-                tmp_path = None
-                if isinstance(output_section, dict):
-                    tmp_path = output_section.get("tmp_file_path")
-                if not tmp_path and state_snapshot:
-                    tmp_path = state_snapshot.get("tmp_file_path")
-                size_bytes = None
-                if tmp_path and os.path.exists(tmp_path):
-                    try:
-                        size_bytes = os.path.getsize(tmp_path)
-                    except OSError:
-                        size_bytes = None
-                payloads.append(
-                    _build_stage_payload(
-                        "doc_download",
-                        "Document downloaded",
-                        bytes=size_bytes,
-                        temp_path=_truncate(tmp_path, 80) if tmp_path else None,
-                    )
-                )
+        if template:
+            # Format message with dynamic data
+            message = template
 
-        elif node_name in ("doc_process", "document_processing_node"):
-            if ev_type == "on_chain_start":
-                payloads.append(
-                    _build_stage_payload(
-                        "doc_process",
-                        "Processing downloaded document…",
-                    )
-                )
-            elif ev_type == "on_chain_end":
-                payloads.append(
-                    _build_stage_payload(
-                        "doc_process",
-                        "Document chunks prepared for retrieval",
-                    )
-                )
+            # Input node special handling
+            if ui_key == "input":
+                if is_start:
+                    session = _safe_session(initial_state.get("session_id"))
+                    user_msg = _truncate(initial_state.get("message"), 120)
+                    payloads.append({
+                        "type": "stage",
+                        "category": "status",
+                        "node": "input",
+                        "message": message
+                    })
+                else:
+                    payloads.append({
+                        "type": "stage",
+                        "category": "status",
+                        "node": "input",
+                        "message": message
+                    })
 
-        elif node_name in ("policy_retriever", "policy_retriever_node") and ev_type == "on_chain_end":
-            print(f"[EVENT_FORMATTER] Processing policy retriever end event")
-            policy_chunks = None
-            if isinstance(output_section, dict):
-                policy_chunks = output_section.get("policy_context")
-            if policy_chunks is None and state_snapshot:
-                policy_chunks = state_snapshot.get("policy_context")
-            count = _extract_count(policy_chunks) or 0
-            payloads.append(
-                _build_stage_payload(
-                    "policy_retriever",
-                    f"Retrieved {count} policy chunks",
-                    count=count,
-                    sample=_truncate(policy_chunks[0] if count else "", 160)
-                    if isinstance(policy_chunks, list)
-                    else None,
-                )
-            )
-            print(f"[EVENT_FORMATTER] Generated policy retriever payload with {count} chunks")
+            # History node
+            elif ui_key == "history" and not is_start:
+                history = output.get("history") if isinstance(output, dict) else None
+                if history is None:
+                    history = state.get("history")
+                count = _extract_count(history) or 0
+                payloads.append({
+                    "type": "stage",
+                    "category": "status",
+                    "node": "history",
+                    "message": message.format(count=count)
+                })
 
-        elif node_name in ("doc_retriever", "document_retriever_node") and ev_type == "on_chain_end":
-            doc_chunks = None
-            if isinstance(output_section, dict):
-                doc_chunks = output_section.get("doc_context")
-            if doc_chunks is None and state_snapshot:
-                doc_chunks = state_snapshot.get("doc_context")
-            count = _extract_count(doc_chunks) or 0
-            payloads.append(
-                _build_stage_payload(
-                    "doc_retriever",
-                    f"Retrieved {count} document chunks",
-                    count=count,
-                    sample=_truncate(doc_chunks[0] if count else "", 160)
-                    if isinstance(doc_chunks, list)
-                    else None,
-                )
-            )
+            # Document download node
+            elif ui_key == "doc_download":
+                if is_start:
+                    url = initial_state.get("document_url") or state.get("document_url")
+                    if url:
+                        payloads.append({
+                            "type": "stage",
+                            "category": "status",
+                            "node": "doc_download",
+                            "message": message.format(url=_truncate(url, 100))
+                        })
+                else:
+                    payloads.append({
+                        "type": "stage",
+                        "category": "status",
+                        "node": "doc_download",
+                        "message": message
+                    })
 
-        elif node_name in ("context_combine", "context_combination_node") and ev_type == "on_chain_end":
-            full_message = None
-            if isinstance(output_section, dict):
-                full_message = output_section.get("full_user_message")
-            if not full_message and state_snapshot:
-                full_message = state_snapshot.get("full_user_message")
-            payloads.append(
-                _build_stage_payload(
-                    "context_combine",
-                    "Combining policy and document context",
-                    preview=_truncate(full_message, 200) if full_message else None,
-                )
-            )
+            # Document processing node
+            elif ui_key == "doc_process":
+                payloads.append({
+                    "type": "stage",
+                    "category": "status",
+                    "node": "doc_process",
+                    "message": message
+                })
 
-        elif node_name in ("llm", "llm_node") and ev_type == "on_chain_start":
-            payloads.append(
-                _build_stage_payload(
-                    "llm",
-                    "Generating response with LLM…",
-                )
-            )
+            # Retriever nodes
+            elif ui_key in ("policy_retriever", "doc_retriever") and not is_start:
+                context_key = "policy_context" if ui_key == "policy_retriever" else "doc_context"
+                chunks = output.get(context_key) if isinstance(output, dict) else None
+                if chunks is None:
+                    chunks = state.get(context_key)
 
-        elif node_name in ("session_update", "session_update_node") and ev_type == "on_chain_end":
-            payloads.append(
-                _build_stage_payload(
-                    "session_update",
-                    "Appending messages to session history",
-                )
-            )
+                count = _extract_count(chunks) or 0
+                payloads.append({
+                    "type": "stage",
+                    "category": "status",
+                    "node": ui_key,
+                    "message": message.format(count=count)
+                })
 
-        elif node_name in ("output", "output_node") and ev_type == "on_chain_end":
-            print(f"[EVENT_FORMATTER] Processing output node end event")
-            final_text = ""
-            if isinstance(output_section, dict):
-                final_text = _extract_text(output_section.get("content") or output_section)
+            # Context combination node
+            elif ui_key == "context_combine" and not is_start:
+                full_message = output.get("full_user_message") if isinstance(output, dict) else None
+                if not full_message:
+                    full_message = state.get("full_user_message")
+
+                payloads.append({
+                    "type": "stage",
+                    "category": "status",
+                    "node": "context_combine",
+                    "message": message
+                })
+
+            # LLM node
+            elif ui_key == "llm" and is_start:
+                payloads.append({
+                    "type": "stage",
+                    "category": "status",
+                    "node": "llm",
+                    "message": message
+                })
+
+            # Session update node
+            elif ui_key == "session_update" and not is_start:
+                payloads.append({
+                    "type": "stage",
+                    "category": "status",
+                    "node": "session_update",
+                    "message": message
+                })
+
+            # Output node
+            elif ui_key == "output" and not is_start:
+                final_text = ""
+                citations = []
+                chunk_metadata = []
+
+                if isinstance(output, dict):
+                    final_text = _extract_text(output.get("content") or output)
+                    if not final_text:
+                        final_text = output.get("response", "")
+                    # Extract citations and chunk metadata
+                    citations = output.get("citations", [])
+                    chunk_metadata = output.get("chunk_metadata", [])
+
                 if not final_text:
-                    final_text = output_section.get("response", "")
-            if not final_text:
-                final_text = _extract_text(data_section)
-            payloads.append({"type": "final", "node": node_name, "content": final_text})
-            print(f"[EVENT_FORMATTER] Generated final output payload with text: {final_text[:100]}...")
+                    final_text = _extract_text(raw_data)
 
-        elif ev_type in ("on_chain_start", "on_chain_end") and node_name:
-            # Fallback generic progress event
-            print(f"[EVENT_FORMATTER] Processing generic {ev_type} event for {node_name}")
-            verb = "Starting" if ev_type == "on_chain_start" else "Finished"
-            payloads.append(
-                _build_stage_payload(
-                    node_name,
-                    f"{verb} node '{node_name}'",
-                )
-            )
-            print(f"[EVENT_FORMATTER] Generated generic payload for {node_name}")
+                payload = {
+                    "type": "final",
+                    "category": "content",
+                    "node": node,
+                    "content": final_text,
+                    "citations": citations,
+                    "chunk_metadata": chunk_metadata
+                }
 
-    except Exception as e:
-        print(f"[EVENT_FORMATTER] ERROR processing event: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        payloads = [{"type": "error", "error": str(e)}]
+                print(f"[UI_PAYLOAD] ✓ FINAL payload: content_length={len(final_text)}, citations={len(citations)}")
+                payloads.append(payload)
 
-    print(f"[EVENT_FORMATTER] Returning {len(payloads)} payloads for event: {ev_type} from {node_name}")
+            # Generic fallback for other nodes
+            else:
+                verb = "Starting" if is_start else "Finished"
+                payloads.append({
+                    "type": "stage",
+                    "category": "status",
+                    "node": node,
+                    "message": f"{verb} node '{node}'"
+                })
+
     return payloads
 
 
+# --- Main Formatting Function (Backwards Compatible) ---
+def format_event_for_ui(event: Dict[str, Any], initial_state: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """
+    Convert a raw LangGraph event into UI-friendly payloads.
+
+    Args:
+        event: Raw event dict from LangGraph.astream_events()
+        initial_state: Initial state used for the graph execution
+
+    Returns:
+        List of UI payloads to send to the client
+    """
+    try:
+        # Extract data using separated logic
+        extracted_data = extract_event_data(event)
+        if extracted_data:
+            return map_to_ui_payload(extracted_data, initial_state)
+        return []
+
+    except Exception as e:
+        print(f"[EVENT_FORMATTER] ✗ Error processing event: {e}")
+        import traceback
+        traceback.print_exc()
+        return [{"type": "error", "category": "content", "error": str(e)}]
+
+
 def serialize_payload_for_sse(payload: Dict[str, Any]) -> str:
-    """Serialize a payload for Server-Sent Events."""
+    """
+    Serialize a payload dict for Server-Sent Events format.
+
+    Args:
+        payload: Payload dict to serialize
+
+    Returns:
+        SSE-formatted string: "data: {...}\n\n"
+    """
     try:
         sse_line = f"data: {json.dumps(payload)}\n\n"
-        print(f"[SERIALIZER] Serialized payload: {payload.get('type', 'unknown')} - {len(sse_line)} chars")
         return sse_line
     except Exception as e:
-        print(f"[SERIALIZER] Error serializing payload: {e}")
+        print(f"[SERIALIZER] ✗ Serialization error: {e}")
+        # Fallback for serialization issues
         raw = str(payload)[:200].replace("\n", "\\n")
         safe_payload = {"type": "event", "raw": raw}
         return f"data: {json.dumps(safe_payload)}\n\n"

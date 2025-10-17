@@ -1,0 +1,11 @@
+{
+  "query": "What is the company pto policy",
+  "final_answer": "The company's PTO policy includes the following provisions:\n\n*   Employees receive 20 days of Paid Time Off (PTO) per year [temp_2].\n*   PTO accrual begins on the day an employee joins the company [temp_2].\n*   Employees do not have to specify a reason for requesting PTO [temp_1].\n*   Any remaining PTO cannot be transferred to the next year [temp_1].\n*   Employees are encouraged to use their time off throughout the year [temp_1].\n*   If an employee leaves the company, accrued PTO may be compensated with their final paycheck according to local law. If the law doesn't have provisions, accrued leave will be compensated to employees not terminated for cause [temp_1].\n*   Exempt employees who work on a company holiday will be granted an additional day of PTO, which must be taken within 12 months after that holiday [temp_3].\n*   PTO can be used if more time is required for family obligations or mourning beyond the two additional unpaid days offered for such situations [temp_4].\n*   PTO is one of five types of leave and holidays offered by the company [temp_2].",
+  "metrics": {
+    "total": 0,
+    "verified": 0,
+    "avg_score": 0.0
+  },
+  "citations": [],
+  "all_chunks_count": 2
+}

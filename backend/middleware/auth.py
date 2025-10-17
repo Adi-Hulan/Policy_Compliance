@@ -1,36 +1,9 @@
-"""
-Auth Decorators for Route Protection
--------------------------------------
-Provides decorators for JWT authentication and role-based access control.
-"""
-
+# middleware/auth.py (your existing file - UPDATED)
 from functools import wraps
 from flask import request, jsonify, g
-import jwt
-import os
-from dotenv import load_dotenv
-
-load_dotenv()
+from .shared_auth import verify_jwt_token  # Import shared function
 
 def require_auth(f):
-    """
-    Decorator that validates JWT token and extracts user information.
-    
-    Extracts from Authorization header: Bearer <token>
-    Sets in Flask g object:
-        - g.user_id: User's UUID from token
-        - g.user_email: User's email
-        - g.user_role: User's role (default: 'user')
-    
-    Returns 401 if token is missing or invalid.
-    
-    Usage:
-        @app.route('/protected')
-        @require_auth
-        def protected_route():
-            user_id = g.user_id
-            return jsonify({'user': user_id})
-    """
     @wraps(f)
     def decorated_function(*args, **kwargs):
         auth_header = request.headers.get('Authorization')
@@ -46,43 +19,26 @@ def require_auth(f):
             parts = auth_header.split()
             if len(parts) != 2 or parts[0].lower() != 'bearer':
                 return jsonify({
-                    'error': 'Invalid authorization header',
+                    'error': 'Invalid authorization header', 
                     'message': 'Format must be: Bearer <token>'
                 }), 401
             
             token = parts[1]
             
-            # Decode JWT token using Supabase JWT secret
-            decoded = jwt.decode(
-                token,
-                os.getenv('SUPABASE_JWT_SECRET'),
-                algorithms=['HS256'],
-                audience='authenticated'
-            )
+            # Use shared auth function instead of duplicate logic
+            user_data = verify_jwt_token(token)
             
-            # Extract user information from token
-            g.user_id = decoded.get('sub')  # Subject = User ID
-            g.user_email = decoded.get('email')
-            
-            # Get role from user_metadata or app_metadata
-            user_metadata = decoded.get('user_metadata', {})
-            app_metadata = decoded.get('app_metadata', {})
-            g.user_role = user_metadata.get('role') or app_metadata.get('role') or 'user'
-            
-            # Log for debugging
-            print(f"[AUTH] User authenticated: {g.user_id} ({g.user_email}) - Role: {g.user_role}")
+            # Set in Flask g object (same as before)
+            g.user_id = user_data['user_id']
+            g.user_email = user_data['user_email'] 
+            g.user_role = user_data['user_role']
             
             return f(*args, **kwargs)
             
-        except jwt.ExpiredSignatureError:
+        except ValueError as e:  # Now catching ValueError from shared function
             return jsonify({
-                'error': 'Token expired',
-                'message': 'Your session has expired. Please log in again.'
-            }), 401
-        except jwt.InvalidTokenError as e:
-            return jsonify({
-                'error': 'Invalid token',
-                'message': f'Token validation failed: {str(e)}'
+                'error': 'Authentication failed',
+                'message': str(e)
             }), 401
         except Exception as e:
             print(f"[AUTH ERROR] {str(e)}")

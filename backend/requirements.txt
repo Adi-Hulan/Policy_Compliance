@@ -13,3 +13,7 @@ langgraph
 requests
 langchain-google-genai
 flask-cors
+
+sentence-transformers
+scikit-learn
+torch
