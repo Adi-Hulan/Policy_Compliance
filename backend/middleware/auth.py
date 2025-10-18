@@ -8,6 +8,9 @@ def require_auth(f):
     def decorated_function(*args, **kwargs):
         auth_header = request.headers.get('Authorization')
         
+        if request.method == "OPTIONS":
+            return jsonify({"status": "ok"}), 200
+        
         if not auth_header:
             return jsonify({
                 'error': 'No authorization header',
