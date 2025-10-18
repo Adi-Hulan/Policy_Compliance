@@ -2,7 +2,7 @@ flask
 supabase
 psycopg2
 python-dotenv
-google-generativeai
+google-genai
 PyPDF2
 langchain==0.1.0
 langchain-openai==0.0.2
