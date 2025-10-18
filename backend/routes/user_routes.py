@@ -261,3 +261,35 @@ def get_user_role():
     except Exception as e:
         print(f"Error fetching role for user {user_id}: {e}")
         return jsonify({"error": str(e)}), 500
+
+@user_bp.route("/admin/create-user", methods=["POST"])
+def create_user():
+    print("Creating user...")
+    data = request.get_json()
+    admin_id = data.get("admin_id")
+    email = data.get("email")
+    password = data.get("password")
+
+    # Create user in Supabase Auth (Admin API)
+    response = supabase.auth.admin.create_user({
+        "email": email,
+        "password": password,
+        "email_confirm": False
+    })
+
+    user = response.user
+    if not user:
+        return jsonify({"error": "Failed to create user"}), 400
+
+    user_id = user.id
+
+    # Insert into profiles table manually with admin_id
+    supabase.table("new_profiles").update({
+        "created_by": admin_id,
+        "role": "employee"
+    }).eq("id", user_id).execute()
+
+    return jsonify({
+        "message": "Employee account created successfully",
+        "user_id": user_id
+    }), 201
