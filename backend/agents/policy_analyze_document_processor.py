@@ -22,7 +22,7 @@ class AnalyzeDocumentProcessorTemp:
         self.client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
         self.model = "gemini-embedding-001"
 
-    def chunk_text(self, text, sentences_per_chunk=15, overlap=3):
+    def chunk_text(self, text, sentences_per_chunk=10, overlap=2):
         """Split text into overlapping chunks of sentences."""
         text = ' '.join(text.split())
         sentences = sent_tokenize(text)
