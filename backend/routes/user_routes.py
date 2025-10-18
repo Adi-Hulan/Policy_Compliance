@@ -230,3 +230,34 @@ def update_subscription_status_by_user(user_id):
     except Exception as e:
         print(f"Error updating subscription for user {user_id}: {e}")
         return jsonify({"error": str(e)}), 500
+    
+
+@user_bp.route("/role", methods=["GET", "OPTIONS"])
+@require_auth
+def get_user_role():
+    user_id = getattr(g, "user_id", None)
+    if request.method == "OPTIONS":
+        return jsonify({"status": "ok"}), 200  # Handles preflight
+
+    try:
+        resp = (
+            supabase.table("new_profiles")
+            .select("role")
+            .eq("id", user_id)
+            .limit(1)
+            .execute()
+        )
+
+        if hasattr(resp, "error") and resp.error:
+            return jsonify({"error": str(resp.error)}), 500
+
+        data_out = getattr(resp, "data", None) or resp.get("data", None)
+        if not data_out:
+            return jsonify({"status": "not_found", "message": "User not found"}), 404
+
+        role = data_out[0].get("role") if isinstance(data_out, list) and data_out else None
+        return jsonify({"status": "success", "role": role}), 200
+
+    except Exception as e:
+        print(f"Error fetching role for user {user_id}: {e}")
+        return jsonify({"error": str(e)}), 500
