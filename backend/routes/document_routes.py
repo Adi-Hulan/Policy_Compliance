@@ -90,7 +90,7 @@ def analyze_document():
         retrieval_results = policyAnalyzeRetriever.retrieve_for_embeddings(
             [c["embedding"] for c in chunk_embeddings],
             safe_session_id,
-            top_k=3
+            top_k=1
         )
 
         # Map back attached chunks to matching policies
@@ -140,7 +140,7 @@ def analyze_document():
                     document_embeddings,
                     safe_session_id,
                     policy,
-                    top_k=3
+                    top_k=1
                 )
                 
                 if int_policy_results["status"] == "success":

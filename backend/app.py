@@ -6,6 +6,7 @@ from routes.query_routes import query_bp
 from routes.recommendation_routes import recommendation_bp
 from routes.policy_routes import policy_bp
 from routes.chat_routes import chat_bp
+from routes.user_routes import user_bp
 
 def create_app():
     app = Flask(__name__)
@@ -26,6 +27,8 @@ def create_app():
     app.register_blueprint(recommendation_bp, url_prefix="/recommendations")
     app.register_blueprint(chat_bp, url_prefix="/chat")
     app.register_blueprint(policy_bp, url_prefix="/policies")
+    app.register_blueprint(user_bp, url_prefix="/user")
+    
 
     return app
 
