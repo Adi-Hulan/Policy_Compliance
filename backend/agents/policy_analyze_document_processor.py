@@ -46,7 +46,7 @@ class AnalyzeDocumentProcessorTemp:
                 return {
                     "agent": "AnalyzeDocumentProcessor",
                     "status": "error",
-                    "result": "No text found in PDF"
+                    "result": "No text found in document"
                 }
 
             chunks = self.chunk_text(text)
