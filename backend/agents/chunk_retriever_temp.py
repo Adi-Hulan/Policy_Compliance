@@ -32,7 +32,9 @@ class TempRetriever:
             cur = conn.cursor()
 
             query = f"""
-                SELECT id, content, embedding <=> %s::vector AS distance
+                SELECT id, content, embedding <=> %s::vector AS distance,
+                       char_start, char_end, orig_char_start, orig_char_end,
+                       page, file_path
                 FROM temp_documents_{safe_session_id}
                 ORDER BY distance
                 LIMIT %s
@@ -42,8 +44,18 @@ class TempRetriever:
             cur.close()
             conn.close()
 
-            # 3. Format results
-            chunks = [{"id": r[0], "content": r[1], "distance": r[2]} for r in results]
+            # 3. Format results with citation metadata
+            chunks = [{
+                "id": r[0], 
+                "content": r[1], 
+                "distance": r[2],
+                "char_start": r[3],
+                "char_end": r[4],
+                "orig_char_start": r[5],
+                "orig_char_end": r[6],
+                "page": r[7],
+                "file_path": r[8]
+            } for r in results]
             return {"status": "success", "chunks": chunks}
 
         except Exception as e:

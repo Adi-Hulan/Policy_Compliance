@@ -291,7 +291,7 @@ def map_to_ui_payload(extracted_data: Dict[str, Any], initial_state: Dict[str, A
             "content": token,
             "message": "Generating response..."
         }
-        print(f"[UI_PAYLOAD] ✓ LLM STREAM payload: '{token}'")
+        print(f"📦 LLM STREAM: '{token}'")
         payloads.append(payload)
 
     elif event_type == "llm_final":
@@ -302,7 +302,7 @@ def map_to_ui_payload(extracted_data: Dict[str, Any], initial_state: Dict[str, A
             "content": content,
             "message": "Response complete"
         }
-        print(f"[UI_PAYLOAD] ✓ LLM FINAL payload: length={len(content)}")
+        print(f"📄 LLM FINAL: {len(content)} chars")
         payloads.append(payload)
 
     # Chain lifecycle events
@@ -432,15 +432,15 @@ def map_to_ui_payload(extracted_data: Dict[str, Any], initial_state: Dict[str, A
             elif ui_key == "output" and not is_start:
                 final_text = ""
                 citation_metadata = []
-                validation_recommendations = {}
+                documents = []
 
                 if isinstance(output, dict):
                     final_text = _extract_text(output.get("content") or output)
                     if not final_text:
                         final_text = output.get("response", "")
-                    # Extract citations and chunk metadata
+                    # Extract citations and documents
                     citation_metadata = output.get("citation_metadata", [])
-                    validation_recommendations = output.get("validation_recommendations", {})
+                    documents = output.get("documents", [])
 
                 if not final_text:
                     final_text = _extract_text(raw_data)
@@ -451,10 +451,10 @@ def map_to_ui_payload(extracted_data: Dict[str, Any], initial_state: Dict[str, A
                     "node": node,
                     "content": final_text,
                     "citation_metadata": citation_metadata,
-                    "validation_recommendations": validation_recommendations
+                    "documents": documents
                 }
 
-                print(f"[UI_PAYLOAD] Final payload: {json.dumps(payload, indent=2)}")
+                print(f"🎯 FINAL PAYLOAD: {len(payload.get('citation_metadata', []))} citations, {len(payload.get('documents', []))} documents")
                 payloads.append(payload)
 
             # Generic fallback for other nodes
@@ -490,7 +490,7 @@ def format_event_for_ui(event: Dict[str, Any], initial_state: Dict[str, Any]) ->
         return []
 
     except Exception as e:
-        print(f"[EVENT_FORMATTER] ✗ Error processing event: {e}")
+        print(f"❌ Event processing error: {e}")
         import traceback
         traceback.print_exc()
         return [{"type": "error", "category": "content", "error": str(e)}]
@@ -510,7 +510,7 @@ def serialize_payload_for_sse(payload: Dict[str, Any]) -> str:
         sse_line = f"data: {json.dumps(payload)}\n\n"
         return sse_line
     except Exception as e:
-        print(f"[SERIALIZER] ✗ Serialization error: {e}")
+        print(f"❌ Serialization error: {e}")
         # Fallback for serialization issues
         raw = str(payload)[:200].replace("\n", "\\n")
         safe_payload = {"type": "event", "raw": raw}

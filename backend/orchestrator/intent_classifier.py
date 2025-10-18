@@ -3,6 +3,7 @@ Intent Classification Module
 
 Handles classification of user messages into intent categories:
 - company_policy: Questions about company policies, HR, compliance
+- international_policy: Questions about international regulations, GDPR, HIPAA, etc.
 - general: Casual conversation, system capability questions, history queries
 """
 
@@ -16,14 +17,18 @@ INTENT_CLASSIFICATION_PROMPT = """
 You are an intent classifier for a policy compliance system. Analyze the user's message and classify it into one of these categories:
 
 1. "company_policy" - Questions about company policies, HR policies, employee handbook, compliance, procedures, etc.
-2. "general" - ONLY casual conversation (greetings, small talk) or questions about what the system can do
+2. "international_policy" - Questions about international regulations, standards, and compliance frameworks (GDPR, HIPAA, SOX, ISO standards, data protection laws, etc.)
+3. "general" - ONLY casual conversation (greetings, small talk) or questions about what the system can do
 
-Respond with ONLY the category name (either "company_policy" or "general").
+Respond with ONLY the category name (either "company_policy", "international_policy", or "general").
 
 Examples:
 - "What is our vacation policy?" -> company_policy
 - "How do I submit a leave request?" -> company_policy
 - "What are the dress code requirements?" -> company_policy
+- "What are the GDPR requirements for data processing?" -> international_policy
+- "How does HIPAA affect patient data handling?" -> international_policy
+- "What are the ISO 27001 security standards?" -> international_policy
 - "Hello, how are you?" -> general
 - "Hi there!" -> general
 - "What can you help me with?" -> general
@@ -56,6 +61,16 @@ class IntentClassifier:
         'development', 'onboarding', 'orientation', 'safety', 'security', 'compliance',
         'regulation', 'legal', 'law', 'rights', 'responsibilities', 'workplace', 'office',
         'company', 'organization', 'corporate', 'business', 'work', 'job', 'career'
+    ]
+    
+    INTERNATIONAL_POLICY_KEYWORDS = [
+        'gdpr', 'hipaa', 'sox', 'sarbanes-oxley', 'iso', 'iso 27001', 'iso 9001', 'pci dss',
+        'ccpa', 'california consumer privacy act', 'data protection', 'privacy', 'regulation',
+        'compliance', 'international', 'global', 'standard', 'framework', 'certification',
+        'audit', 'security', 'data breach', 'personal data', 'pii', 'sensitive data',
+        'data controller', 'data processor', 'dpo', 'data protection officer', 'dsar',
+        'data subject access request', 'right to erasure', 'right to portability',
+        'health information', 'medical records', 'patient data', 'phi', 'protected health information'
     ]
     
     CASUAL_KEYWORDS = [
@@ -122,15 +137,20 @@ class IntentClassifier:
         
         # Count keyword matches
         policy_matches = sum(1 for kw in self.POLICY_KEYWORDS if kw in message_lower)
+        international_matches = sum(1 for kw in self.INTERNATIONAL_POLICY_KEYWORDS if kw in message_lower)
         casual_matches = sum(1 for kw in self.CASUAL_KEYWORDS if kw in message_lower)
         capability_matches = sum(1 for kw in self.CAPABILITY_KEYWORDS if kw in message_lower)
         history_matches = sum(1 for kw in self.HISTORY_KEYWORDS if kw in message_lower)
         
         print(f"[INTENT_CLASSIFIER] Keyword matches - Policy: {policy_matches}, "
-              f"Casual: {casual_matches}, Capability: {capability_matches}, "
-              f"History: {history_matches}")
+              f"International: {international_matches}, Casual: {casual_matches}, "
+              f"Capability: {capability_matches}, History: {history_matches}")
         
-        # Policy keywords take precedence
+        # International policy keywords take precedence
+        if international_matches > 0:
+            return "international_policy"
+        
+        # Policy keywords take precedence over international
         if policy_matches > 0:
             return "company_policy"
         
@@ -162,7 +182,7 @@ class IntentClassifier:
             intent = response.content.strip().lower()
             
             # Validate intent
-            if intent not in ["company_policy", "general"]:
+            if intent not in ["company_policy", "international_policy", "general"]:
                 print(f"[INTENT_CLASSIFIER] ⚠ Invalid LLM response '{intent}', defaulting to 'general'")
                 intent = "general"
             

@@ -41,6 +41,10 @@ def session_update_node(state: Dict[str, Any]) -> Dict[str, Any]:
     user_message = input_data.message
     ai_response = input_data.response
 
+    # Grab citation metadata early so we can persist it with the assistant message
+    citation_metadata = getattr(state, 'citation_metadata', None)
+    documents = getattr(state, 'documents', None)
+
     print(f"[SESSION_UPDATE_NODE] Saving to database")
     print(f"[SESSION_UPDATE_NODE] Session: {session_id}")
 
@@ -63,11 +67,23 @@ def session_update_node(state: Dict[str, Any]) -> Dict[str, Any]:
         )
 
         # Save assistant response
+        # Persist citation metadata (if present) with the assistant message so
+        # it survives page refreshes and can be retrieved later.
+        assistant_metadata = None
+        if citation_metadata:
+            assistant_metadata = {
+                'citation_metadata': citation_metadata,
+            }
+            # include documents if available for easier frontend lookup
+            if documents:
+                assistant_metadata['documents'] = documents
+
+        print(f"[SESSION_UPDATE_NODE] Saving assistant message, citations={len(citation_metadata) if citation_metadata else 0}")
         repo.save_message(
             session_id=session_id,
             role='assistant',
             content=ai_response,
-            metadata=None
+            metadata=assistant_metadata
         )
 
         print(f"[SESSION_UPDATE_NODE] ✓ Saved conversation")

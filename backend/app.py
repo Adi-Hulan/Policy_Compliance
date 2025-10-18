@@ -1,6 +1,7 @@
 
-from flask import Flask
+from flask import Flask, send_from_directory, request, jsonify
 from flask_cors import CORS
+import os
 from routes.document_routes import document_bp
 from routes.query_routes import query_bp
 from routes.recommendation_routes import recommendation_bp
@@ -29,6 +30,7 @@ def create_app():
     
 
     return app
+
 
 if __name__ == "__main__":
     app = create_app()

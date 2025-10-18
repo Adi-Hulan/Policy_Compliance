@@ -90,6 +90,7 @@ class OutputNodeOutput(NodeOutput):
     chunk_metadata: List[Dict[str, Any]] = Field(default_factory=list)
     citation_metadata: List[Dict[str, Any]] = Field(default_factory=list)
     validation_recommendations: Dict[str, Any] = Field(default_factory=dict)
+    documents: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 # --- Company Policy Node Models ---
@@ -163,6 +164,7 @@ class ClaimValidatorNodeOutput(NodeOutput):
     """Output from claim validator node."""
     response: str
     citation_metadata: List[Dict[str, Any]] = Field(default_factory=list)
+    documents: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 # --- Graph State Models ---
@@ -211,3 +213,19 @@ class CompanyPolicyState(BaseGraphState):
 class GeneralPurposeState(BaseGraphState):
     """State for general purpose graph workflow."""
     pass  # General purpose doesn't need additional fields
+
+
+class InternationalPolicyState(BaseGraphState):
+    """State for international policy graph workflow."""
+    # International policy specific data
+    policy_context: Optional[List[str]] = None
+    doc_context: Optional[List[str]] = None
+    tmp_file_path: Optional[str] = None
+    full_user_message: Optional[str] = None
+    chunk_metadata: Optional[List[Dict[str, Any]]] = None
+    policy_chunks_with_metadata: Optional[List[Dict[str, Any]]] = None
+    doc_chunks_with_metadata: Optional[List[Dict[str, Any]]] = None
+    
+    # Citation validation data
+    citation_metadata: Optional[List[Dict[str, Any]]] = None
+    validation_recommendations: Optional[Dict[str, Any]] = None

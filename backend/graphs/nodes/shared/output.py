@@ -15,10 +15,10 @@ class OutputCallbackHandler(BaseCallbackHandler):
     """Callback handler to emit retriever events for history serialization."""
 
     def on_retriever_start(self, serialized, query, **kwargs):
-        print("[OUTPUT_CALLBACK] History retriever started")
+        print("📚 History retrieval started")
 
     def on_retriever_end(self, documents, **kwargs):
-        print("[OUTPUT_CALLBACK] History retriever ended")
+        print("📚 History retrieval completed")
 
 
 def get_chat_repository(state) -> ChatRepository:
@@ -45,17 +45,17 @@ def output_node(state: Dict[str, Any]) -> Dict[str, Any]:
         - on_retriever_end: History retrieval completed
         - final: Complete response with history
     """
-    print(f"[OUTPUT_NODE] Processing state with response: {getattr(state, 'response', '')[:100]}...")
-    print(f"[OUTPUT_NODE] Is final result: {state.get('final', False) if hasattr(state, 'get') else getattr(state, 'final', False)}")
+    print(f"📤 Processing output: {len(getattr(state, 'response', ''))} chars")
+    print(f"🏁 Final result: {state.get('final', False) if hasattr(state, 'get') else getattr(state, 'final', False)}")
 
     # Check if this is a streaming token (not final) - just pass it through
     final_flag = state.get('final', False) if hasattr(state, 'get') else getattr(state, 'final', False)
     if not final_flag:
-        print("[OUTPUT_NODE] Streaming token - passing through without processing")
+        print("📡 Streaming token - passing through")
         return {"response": getattr(state, 'response', '')}
 
     # This is the final result - process citations and history
-    print("[OUTPUT_NODE] Processing final result with citations")
+    print("🎯 Processing final result with citations")
 
     # Validate inputs using Pydantic model
     try:
@@ -72,7 +72,7 @@ def output_node(state: Dict[str, Any]) -> Dict[str, Any]:
     except Exception as e:
         raise ValueError(f"Output input validation failed: {e}")
 
-    print("[OUTPUT_NODE] Preparing final output")
+    print("📚 Preparing final output with citations and history")
 
     response_text = input_data.response
     session_id = input_data.session_id
@@ -82,11 +82,14 @@ def output_node(state: Dict[str, Any]) -> Dict[str, Any]:
     citation_metadata = state.get('citation_metadata', []) if hasattr(state, 'get') else getattr(state, 'citation_metadata', []) or []
     validation_recommendations = state.get('validation_recommendations', {}) if hasattr(state, 'get') else getattr(state, 'validation_recommendations', {}) or {}
 
-    # Extract document_info from state
+    # Get documents from claim validator (if available)
+    documents = state.get('documents', []) if hasattr(state, 'get') else getattr(state, 'documents', []) or []
+
+    # Extract document_info from state (legacy support)
     document_info = state.get('document_info', None) if hasattr(state, 'get') else getattr(state, 'document_info', None)
 
     # Debug: Log document_info in the final output
-    print(f"[DEBUG] Document Info: {document_info}")
+    # print(f"📋 Document Info: {document_info}")
 
     # Emit retriever start event for history serialization
     callback_handler = OutputCallbackHandler()
@@ -107,9 +110,22 @@ def output_node(state: Dict[str, Any]) -> Dict[str, Any]:
     # Emit retriever end event
     callback_handler.on_retriever_end(documents=history_serialized)
 
-    print(f"[OUTPUT_NODE] ✓ Response length: {len(response_text)} chars")
-    print(f"[OUTPUT_NODE] ✓ History: {len(history_serialized)} messages")
-    print(f"[OUTPUT_NODE] ✓ Citations: {len(citation_metadata)} validated")
+    print(f"📄 Response: {len(response_text)} chars")
+    print(f"📚 History: {len(history_serialized)} messages")
+    # Merge documents from claim validator with legacy document_info
+    all_documents = documents.copy()
+    if document_info:
+        # Convert legacy document_info to documents format
+        legacy_doc = {
+            'id': f"legacy_{document_info.get('title', 'unknown')}",
+            'title': document_info.get('title', 'Unknown Document'),
+            'url': document_info.get('url', ''),
+            'type': 'document',
+            'file_path': document_info.get('url', '')
+        }
+        all_documents.append(legacy_doc)
+
+    print(f"📚 Documents: {len(all_documents)} total")
 
     # Return validated output with citations and chunk metadata
     output_data = OutputNodeOutput(
@@ -118,9 +134,8 @@ def output_node(state: Dict[str, Any]) -> Dict[str, Any]:
         chunk_metadata=chunk_metadata,
         citation_metadata=citation_metadata,
         validation_recommendations=validation_recommendations,
-        document_info=document_info,  # Add document_info here
-        final=True  # Explicitly mark as final
+        documents=all_documents
     )
     # Debug: Print the final JSON response sent to the frontend
-    print(f"[OUTPUT_NODE] Final JSON response: {output_data.model_dump()}")
+    # print(f"📤 Final JSON response: {output_data.model_dump()}")
     return output_data.model_dump()

@@ -1,7 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routes.query_routes2 import query_bp
-from routes.document_routes import router as document_router
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -19,7 +18,6 @@ app.add_middleware(
 
 # Include query routes only
 app.include_router(query_bp)
-app.include_router(document_router)
 
 if __name__ == "__main__":
     import uvicorn

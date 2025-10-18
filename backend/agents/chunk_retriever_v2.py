@@ -55,6 +55,15 @@ class RetrieverV2:
                     "id": r[0],
                     "content": r[1],
                     "distance": r[2],
+                    # Flatten citation metadata to top level for claim validator
+                    "char_start": r[3],
+                    "char_end": r[4],
+                    "orig_char_start": r[5],
+                    "orig_char_end": r[6],
+                    "page": r[7],
+                    "file_path": r[8],
+                    "created_at": r[9].isoformat() if r[9] else None,
+                    # Keep nested citation for backward compatibility
                     "citation": {
                         "char_start": r[3],
                         "char_end": r[4],

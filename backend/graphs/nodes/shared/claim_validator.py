@@ -5,25 +5,29 @@ Complete replacement for the existing claim validator
 
 from typing import List, Dict, Any, Tuple
 import re
+import os
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
 from ..models import ClaimValidatorNodeInput, ClaimValidatorNodeOutput
 
 # Initialize models
-print("[CLAIM_VALIDATOR] Loading enhanced models...")
+print("🧠 Loading Enhanced Claim Validator...")
+print("   • Sentence Transformer for semantic matching")
+print("   • spaCy for intelligent claim extraction")
+print("   • Smart citation injection system")
 
 # 1. Sentence Transformer for SEMANTIC matching
 _similarity_model = SentenceTransformer('all-mpnet-base-v2')
-print("[CLAIM_VALIDATOR] ✓ Sentence Transformer loaded for semantic matching")
+print("   ✓ Sentence Transformer loaded")
 
 # 2. spaCy for INTELLIGENT claim extraction
 import spacy
 nlp = spacy.load("en_core_web_sm")
 HAS_SPACY = True
-print("[CLAIM_VALIDATOR] ✓ spaCy loaded successfully")
+print("   ✓ spaCy loaded")
 
-print("[CLAIM_VALIDATOR] ✅ Enhanced models loaded successfully")
+print("✅ Claim Validator ready!")
 
 
 def extract_claims_with_positions(llm_response: str) -> List[Tuple[str, int, int]]:
@@ -220,7 +224,7 @@ def semantic_similarity(claim: str, chunk_text: str) -> float:
         return float(similarity)
         
     except Exception as e:
-        print(f"[SEMANTIC_SIMILARITY] Error: {e}, using fallback")
+        print(f"⚠️  Semantic similarity error: {e}, using fallback")
         return text_similarity(claim, chunk_text)
 
 
@@ -249,7 +253,7 @@ def find_best_chunk_semantic(claim: str, chunks: List[Dict]) -> Dict[str, Any]:
     best_similarity = 0
     best_chunk = None
     
-    print(f"[SEMANTIC_MATCH] Finding best match for claim")
+    print(f"🔍 Finding best semantic match for claim")
     
     # FIRST PASS: Semantic matching (handles rephrasing)
     for i, chunk in enumerate(chunks):
@@ -289,22 +293,24 @@ def find_best_chunk_semantic(claim: str, chunks: List[Dict]) -> Dict[str, Any]:
         best_chunk.setdefault('char_end', None)
     
     # Debug: Log the best chunk to verify document_info fields
-    if best_chunk:
-        print(f"[DEBUG] Best chunk: {best_chunk}")
+    # if best_chunk:
+    #     print(f"[DEBUG] Best chunk: {best_chunk}")
     
     # Calculate char_start based on the position of the chunk's content in the document
-    if best_chunk:
+    # ONLY if not already provided
+    if best_chunk and best_chunk.get('char_start') is None:
         chunk_text = best_chunk.get('content', '') or best_chunk.get('text', '')
         if chunk_text:
             document_text = best_chunk.get('document_text', '')  # Assuming full document text is available
             char_start = document_text.find(chunk_text)
-            best_chunk['char_start'] = char_start if char_start != -1 else None
-            best_chunk['char_end'] = char_start + len(chunk_text) if char_start != -1 else None
+            if char_start != -1:
+                best_chunk['char_start'] = char_start
+                best_chunk['char_end'] = char_start + len(chunk_text)
     
     # Debug: Log the presence of document_text in chunks
-    for chunk in chunks:
-        if 'document_text' not in chunk:
-            print(f"[DEBUG] Missing document_text in chunk: {chunk.get('id', 'unknown')}")
+    # for chunk in chunks:
+    #     if 'document_text' not in chunk:
+    #         print(f"[DEBUG] Missing document_text in chunk: {chunk.get('id', 'unknown')}")
     
     return best_chunk if best_chunk and best_chunk['similarity_score'] > 0.2 else None
 
@@ -324,20 +330,18 @@ def find_best_chunk_keyword_fallback(claim: str, chunks: List[Dict], current_bes
         # Calculate keyword similarity
         keyword_similarity = text_similarity(claim, chunk_text)
         
-        # Boost good keyword matches
-        if keyword_similarity > 0.4:  # Good keyword overlap
-            boosted_similarity = max(keyword_similarity, 0.35)  # Boost to at least low confidence
-            
-            if boosted_similarity > best_keyword_similarity:
-                best_keyword_similarity = boosted_similarity
-                best_keyword_chunk = chunk.copy()
-                best_keyword_chunk['similarity_score'] = boosted_similarity
-                best_keyword_chunk['match_type'] = 'keyword_fallback'
-                best_keyword_chunk['original_keyword_similarity'] = keyword_similarity
-                
-                print(f"  🔍 Keyword match: {keyword_similarity:.3f} → {boosted_similarity:.3f}")
-    
-    return best_keyword_chunk
+                # Boost good keyword matches
+                # if keyword_similarity > 0.4:  # Good keyword overlap
+                #     boosted_similarity = max(keyword_similarity, 0.35)  # Boost to at least low confidence
+                #
+                #     if boosted_similarity > best_keyword_similarity:
+                #         best_keyword_similarity = boosted_similarity
+                #         best_keyword_chunk = chunk.copy()
+                #         best_keyword_chunk['similarity_score'] = boosted_similarity
+                #         best_keyword_chunk['match_type'] = 'keyword_fallback'
+                #         best_keyword_chunk['original_keyword_similarity'] = keyword_similarity
+                #
+                #         print(f"  🔍 Keyword match: {keyword_similarity:.3f} → {boosted_similarity:.3f}")    return best_keyword_chunk
 
 
 def inject_citations_with_positions(llm_response: str, citation_metadata: List[Dict]) -> str:
@@ -354,7 +358,7 @@ def inject_citations_with_positions(llm_response: str, citation_metadata: List[D
     response_chars = list(llm_response)
     inserted_markers = 0
     
-    print(f"[CITATION_INJECTION] Injecting {len(sorted_citations)} citations")
+    print(f"📝 Injecting {len(sorted_citations)} citations into response")
     
     for citation in sorted_citations:
         citation_number = citation.get('citation_number', 0)
@@ -382,7 +386,7 @@ def inject_citations_with_positions(llm_response: str, citation_metadata: List[D
     
     # Validation
     citation_markers = re.findall(r'\[\d+\]', final_response)
-    print(f"[CITATION_INJECTION] Complete: {len(citation_markers)} markers added")
+    print(f"✅ Citation injection complete: {len(citation_markers)} markers added")
     
     return final_response
 
@@ -483,81 +487,152 @@ def claim_validator_node(state) -> Dict[str, Any]:
         raise ValueError(f"Claim validator input validation failed: {e}")
 
     llm_response = input_data.llm_response
-    all_chunks = input_data.policy_chunks + input_data.doc_chunks
+    
+    # Add source information to chunks
+    policy_chunks = [{**chunk, 'source': 'policy'} for chunk in input_data.policy_chunks]
+    doc_chunks = [{**chunk, 'source': 'document'} for chunk in input_data.doc_chunks]
+    all_chunks = policy_chunks + doc_chunks
 
-    print(f"[CLAIM_VALIDATOR] Processing {len(llm_response)} chars, {len(all_chunks)} chunks")
+    print(f"🔍 Processing {len(llm_response)} chars, {len(all_chunks)} chunks ({len(policy_chunks)} policy, {len(doc_chunks)} document)")
 
     try:
         # STEP 1: Enhanced claim extraction with spaCy
         claims_with_positions = extract_claims_with_positions(llm_response)
-        print(f"[CLAIM_VALIDATOR] Extracted {len(claims_with_positions)} claims")
+        print(f"📝 Extracted {len(claims_with_positions)} claims from response")
         
         citation_metadata = []
+        documents = []
+        hallucinated_claims = []
         citation_counter = 1
 
         # STEP 2: Semantic matching with Sentence Transformers
         for claim_text, start_pos, end_pos in claims_with_positions:
-            print(f"[CLAIM_VALIDATOR] Claim {citation_counter}: processing")
-            
+            print(f"🔍 Processing claim (next citation number {citation_counter})")
+
             matching_chunk = find_best_chunk_semantic(claim_text, all_chunks)
-            
+
             if matching_chunk:
                 confidence = matching_chunk['confidence']
                 similarity = matching_chunk['similarity_score']
                 match_type = matching_chunk.get('match_type', 'semantic')
                 
-                print(f"✅ {match_type.upper()} MATCH: {confidence} confidence (score: {similarity:.3f})")
-                
-                citation_metadata.append({
+                # Support citation metadata stored either at top-level or nested under 'citation'
+                citation_block = matching_chunk.get('citation', {}) if isinstance(matching_chunk.get('citation', {}), dict) else {}
+
+                # Resolve fields preferring nested citation block then top-level chunk keys
+                resolved_file_path = citation_block.get('file_path') or matching_chunk.get('file_path')
+                resolved_char_start = citation_block.get('char_start') if citation_block.get('char_start') is not None else matching_chunk.get('char_start')
+                resolved_char_end = citation_block.get('char_end') if citation_block.get('char_end') is not None else matching_chunk.get('char_end')
+                # `page` is not computed during ingestion; require only file path + char ranges for highlighting
+                # Check if we have the minimum required fields for highlighting
+                has_citation_metadata = bool(resolved_file_path) and (resolved_char_start is not None) and (resolved_char_end is not None)
+
+                if has_citation_metadata:
+                    print(f"✅ {match_type.upper()} MATCH: {confidence} confidence (score: {similarity:.3f}) - CITATION READY")
+
+                    # Use source from chunk metadata
+                    source = matching_chunk.get('source', 'policy')
+
+                    # Build document_info with optional original char ranges if available
+                    document_info = {
+                        "file_path": resolved_file_path,
+                        "char_start": resolved_char_start,
+                        "char_end": resolved_char_end,
+                    }
+                    # Include original char positions if present in citation block
+                    if citation_block.get('orig_char_start') is not None:
+                        document_info['orig_char_start'] = citation_block.get('orig_char_start')
+                    if citation_block.get('orig_char_end') is not None:
+                        document_info['orig_char_end'] = citation_block.get('orig_char_end')
+
+                    # Derive a short snippet for frontend preview / fallback search.
+                    chunk_preview = (matching_chunk.get('content') or matching_chunk.get('text') or '')
+                    snippet = chunk_preview.strip()
+                    if len(snippet) > 120:
+                        snippet = snippet[:120].rsplit(' ', 1)[0] + '...'
+
+                    citation_metadata.append({
+                        "claim": claim_text,
+                        "chunk_id": matching_chunk.get('id'),
+                        "similarity": similarity,
+                        "confidence": confidence,
+                        "citation_number": citation_counter,
+                        "original_start_pos": start_pos,
+                        "original_end_pos": end_pos,
+                        "source": source,
+                        "match_type": match_type,
+                        # Short text snippet helps frontend find the cited region if offsets don't match
+                        "snippet": snippet,
+                        "document_info": document_info,
+                    })
+                    citation_counter += 1  # Only increment for citations with metadata
+                else:
+                    print(f"✅ {match_type.upper()} MATCH: {confidence} confidence (score: {similarity:.3f}) - NO CITATION METADATA - SKIPPING")
+                    # Don't create citation entry and don't increment counter
+            else:
+                # No matching chunk found -> treat as hallucination.
+                # Do NOT create a citation entry, but record the hallucinated claim so
+                # the orchestrator/previous node can decide to retry or re-query the LLM.
+                print(f"❌ NO MATCH FOUND - potential hallucination - recording for retry")
+                hallucinated_claims.append({
                     "claim": claim_text,
-                    "chunk_id": matching_chunk.get('id'),
-                    "similarity": similarity,
-                    "confidence": confidence,
-                    "citation_number": citation_counter,
                     "original_start_pos": start_pos,
                     "original_end_pos": end_pos,
-                    "page": matching_chunk.get('page'),
-                    "source": "policy",
-                    "match_type": match_type,
-                    "document_info": {
-                        "file_path": matching_chunk.get('file_path'),
-                        "char_start": matching_chunk.get('char_start'),
-                        "char_end": matching_chunk.get('char_end'),
-                    }
-                })
-            else:
-                print(f"❌ NO MATCH FOUND - potential hallucination")
-                citation_metadata.append({
-                    "claim": claim_text,
-                    "hallucination": True,
                     "similarity": 0.0,
                     "confidence": "none",
-                    "citation_number": citation_counter,
-                    "original_start_pos": start_pos,
-                    "original_end_pos": end_pos,
                 })
-            
-            citation_counter += 1
+                # Do not increment citation_counter and do not append to citation_metadata
+                continue
 
         # STEP 3: Smart citation injection
         final_response_with_citations = inject_citations_with_positions(llm_response, citation_metadata)
         
-        print(f"[CITATION_INJECTION] Original: {len(llm_response)} chars, Final: {len(final_response_with_citations)} chars")
-        
+        print(f"📄 Response transformed: {len(llm_response)} → {len(final_response_with_citations)} chars")
+
         citation_markers = re.findall(r'\[\d+\]', final_response_with_citations)
-        print(f"[CITATION_INJECTION] Found {len(citation_markers)} citation markers in final response")
+        print(f"🏷️  Citation markers found: {len(citation_markers)}")
+
+        # STEP 4: Collect unique documents from citations
+        document_map = {}
+        for citation in citation_metadata:
+            if not citation.get('hallucination', False) and citation.get('document_info', {}).get('file_path'):
+                file_path = citation['document_info']['file_path']
+                source = citation.get('source', 'policy')
+                doc_id = f"{source}_{file_path}"
+                
+                if doc_id not in document_map:
+                    document_map[doc_id] = {
+                        'id': doc_id,
+                        'title': os.path.basename(file_path),
+                        'url': file_path,  # TODO: Convert to proper URL if needed
+                        'type': source,
+                        'file_path': file_path
+                    }
+        
+        # Add a frontend-friendly URL for each document when possible
+        base_url = os.getenv('PUBLIC_BASE_URL', 'http://localhost:8000').rstrip('/')
+        for d in document_map.values():
+            fp = d.get('file_path')
+            if fp and isinstance(fp, str) and '/uploads/' in fp:
+                # map absolute or relative path to a frontend-accessible absolute URL
+                filename = os.path.basename(fp)
+                d['url'] = f"{base_url}/uploads/{filename}"
+
+        documents = list(document_map.values())
+        print(f"📚 Collected {len(documents)} unique documents for highlighting")
 
         # Show citation preview
-        citation_lines = [line for line in final_response_with_citations.split('\n') if '[' in line and ']' in line]
-        for i, line in enumerate(citation_lines[:4]):
-            print(f"[CITATION_PREVIEW] Line {i+1}: {line.strip()[:80]}...")
+        # citation_lines = [line for line in final_response_with_citations.split('\n') if '[' in line and ']' in line]
+        # for i, line in enumerate(citation_lines[:4]):
+        #     print(f"[CITATION_PREVIEW] Line {i+1}: {line.strip()[:80]}...")
 
         # Calculate metrics
         high_conf = len([c for c in citation_metadata if c.get('confidence') == 'high'])
         medium_conf = len([c for c in citation_metadata if c.get('confidence') == 'medium'])
         low_conf = len([c for c in citation_metadata if c.get('confidence') == 'low'])
-        hallucinations = len([c for c in citation_metadata if c.get('hallucination', False)])
-        
+        # Use recorded hallucinated_claims list for hallucination count
+        hallucinations = len(hallucinated_claims)
+
         total_citations = high_conf + medium_conf + low_conf
         precision = total_citations / len(claims_with_positions) if claims_with_positions else 0
 
@@ -565,7 +640,7 @@ def claim_validator_node(state) -> Dict[str, Any]:
         print(f"   Architecture: spaCy + Sentence Transformers")
         print(f"   Total claims: {len(claims_with_positions)}")
         print(f"   High confidence: {high_conf}")
-        print(f"   Medium confidence: {medium_conf}") 
+        print(f"   Medium confidence: {medium_conf}")
         print(f"   Low confidence: {low_conf}")
         print(f"   Hallucinations: {hallucinations}")
         print(f"   Precision: {precision:.2f}")
@@ -574,7 +649,8 @@ def claim_validator_node(state) -> Dict[str, Any]:
         # Return the response WITH injected citations
         output_data = ClaimValidatorNodeOutput(
             response=final_response_with_citations,
-            citation_metadata=citation_metadata
+            citation_metadata=citation_metadata,
+            documents=documents
         )
         
         result = output_data.model_dump()
@@ -589,11 +665,16 @@ def claim_validator_node(state) -> Dict[str, Any]:
             'using_spacy': HAS_SPACY,
             'using_sentence_transformers': True
         }
+        # If any hallucinations were detected, include them and request a retry
+        # The orchestrator can inspect `retry_requested` and `hallucinated_claims`
+        # to decide to re-run the previous LLM node or take corrective action.
+        result['retry_requested'] = True if hallucinated_claims else False
+        result['hallucinated_claims'] = hallucinated_claims
         
         return result
 
     except Exception as e:
-        print(f"[CLAIM_VALIDATOR_NODE] ❌ Validation failed: {e}")
+        print(f"❌ Validation failed: {e}")
         import traceback
         traceback.print_exc()
         

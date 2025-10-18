@@ -106,6 +106,53 @@ def verify_documents_v2_table():
         print(f"❌ Verification failed: {e}")
         return False
 
+def verify_international_policy_table():
+    """Verify that international_policy table was created successfully."""
+    print("\n🔍 Verifying international_policy table...")
+    
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        # Check international_policy table
+        cursor.execute("""
+            SELECT table_name, column_name, data_type 
+            FROM information_schema.columns 
+            WHERE table_name = 'international_policy'
+            ORDER BY ordinal_position;
+        """)
+        columns = cursor.fetchall()
+        
+        if columns:
+            print("\n✅ Table 'international_policy' created with columns:")
+            for table, column, dtype in columns:
+                print(f"   - {column}: {dtype}")
+        else:
+            print("❌ Table 'international_policy' not found")
+            return False
+        
+        # Check indexes
+        cursor.execute("""
+            SELECT indexname 
+            FROM pg_indexes 
+            WHERE tablename = 'international_policy'
+            ORDER BY indexname;
+        """)
+        indexes = cursor.fetchall()
+        
+        if indexes:
+            print("\n✅ Indexes created:")
+            for (idx_name,) in indexes:
+                print(f"   - {idx_name}")
+        
+        cursor.close()
+        conn.close()
+        return True
+        
+    except Exception as e:
+        print(f"❌ Verification failed: {e}")
+        return False
+
 def main():
     """Main migration runner."""
     print("=" * 60)
@@ -128,18 +175,33 @@ def main():
         print("\n❌ Migration failed")
         sys.exit(1)
     
-    # Step 3: Verify table
+    # Step 3: Run international_policy migration
+    if not run_migration("004_create_international_policy_table.sql"):
+        print("\n❌ Migration failed")
+        sys.exit(1)
+    
+    # Step 4: Verify tables
     if not verify_documents_v2_table():
+        print("\n❌ Documents V2 verification failed")
+        sys.exit(1)
+    
+    if not verify_international_policy_table():
+        print("\n❌ International Policy verification failed")
+        sys.exit(1)
+    
+    if not verify_international_policy_table():
         print("\n❌ Verification failed")
         sys.exit(1)
     
     print("\n" + "=" * 60)
-    print("🎉 Documents V2 Migration completed successfully!")
+    print("🎉 All Migrations completed successfully!")
     print("=" * 60)
     print("\nNext steps:")
-    print("  1. Review the created documents_v2 table in your database")
-    print("  2. Test the new /upload_v2 endpoint")
-    print("  3. Use RetrieverV2 for citation-enabled retrieval")
+    print("  1. Review the created tables in your database")
+    print("  2. Test the new /upload_v2 endpoint for company documents")
+    print("  3. Test international policy document uploads")
+    print("  4. Use RetrieverV2 for citation-enabled company document retrieval")
+    print("  5. Use InternationalPolicyRetriever for international regulation retrieval")
     print()
 
 if __name__ == "__main__":

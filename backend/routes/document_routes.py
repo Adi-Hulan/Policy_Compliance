@@ -8,7 +8,6 @@ from agents.policy_analyze_chunk_retriever import PolicyAnalyzeRetriever
 from agents.chunk_retriever_v2 import RetrieverV2
 from google import genai
 from middleware.auth import require_auth
-from fastapi import APIRouter, HTTPException, Query
 from pathlib import Path
 from agents.international_policy_retriever import InternationalPolicyRetriever
 from google import genai
@@ -22,7 +21,6 @@ processor_v2 = DocumentProcessorV2()
 retriever_v2 = RetrieverV2()
 doc_processor = AnalyzeDocumentProcessorTemp()
 policyAnalyzeRetriever = PolicyAnalyzeRetriever()
-router = APIRouter()
 internationalPolicyRetriever = InternationalPolicyRetriever()
 int_processor = InternationalPolicyProcessor()
 
@@ -74,6 +72,7 @@ def query_documents_v2():
         return jsonify({"error": "No question provided"}), 400
     
     top_k = data.get("top_k", 5)
+    print(f"[DEBUG] /query_v2 called with question={question!r} top_k={top_k}")
     result = retriever_v2.retrieve_chunks_with_citations(question, top_k)
     return jsonify(result)
 
@@ -190,43 +189,91 @@ def analyze_document():
     finally:
         os.remove(tmp_file_path)
 
-@router.get("/retrieve-citation")
-def retrieve_citation(
-    file_path: str = Query(..., description="Path to the document file"),
-    char_start: int = Query(..., description="Start character index of the citation"),
-    char_end: int = Query(..., description="End character index of the citation")
-):
-    """
-    Retrieve a citation from a document based on character range.
+@document_bp.route('/retrieve-citation', methods=['GET'])
+@require_auth
+def retrieve_citation_flask():
+    """Flask endpoint to retrieve a citation by character range from a file on disk.
 
-    Args:
-        file_path (str): Path to the document file.
-        char_start (int): Start character index of the citation.
-        char_end (int): End character index of the citation.
-
-    Returns:
-        dict: Extracted citation text.
+    Query params:
+      - file_path: full path to the file (or filename in ./uploads)
+      - char_start: start index
+      - char_end: end index
     """
+    file_path = request.args.get('file_path')
+    char_start = request.args.get('char_start')
+    char_end = request.args.get('char_end')
+
+    print(f"[DEBUG] /documents/retrieve-citation called with file_path={file_path} char_start={char_start} char_end={char_end}")
+
+    if not file_path or char_start is None or char_end is None:
+        return jsonify({'error': 'file_path, char_start and char_end are required'}), 400
+
     try:
-        # Validate file existence
-        document = Path(file_path)
-        if not document.exists():
-            raise HTTPException(status_code=404, detail="Document not found")
+        char_start = int(char_start)
+        char_end = int(char_end)
+    except ValueError:
+        return jsonify({'error': 'char_start and char_end must be integers'}), 400
 
-        # Read the document content
-        with document.open("r", encoding="utf-8") as file:
-            content = file.read()
+    # Support either an absolute path or a filename inside ./uploads
+    doc_path = Path(file_path)
+    if not doc_path.is_absolute():
+        upload_dir = Path(os.path.abspath('./uploads'))
+        doc_path = upload_dir.joinpath(os.path.basename(file_path))
 
-        # Validate character range
+    if not doc_path.exists():
+        return jsonify({'error': 'file not found'}), 404
+
+    try:
+        with doc_path.open('r', encoding='utf-8') as f:
+            content = f.read()
+
         if char_start < 0 or char_end > len(content) or char_start >= char_end:
-            raise HTTPException(status_code=400, detail="Invalid character range")
+            return jsonify({'error': 'invalid character range'}), 400
 
-        # Extract the citation text
         citation_text = content[char_start:char_end]
-        return {"citation_text": citation_text}
-
+        return jsonify({'citation_text': citation_text})
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@document_bp.route('/text', methods=['GET'])
+@require_auth
+def get_document_text():
+    """
+    Return the plain text of a document stored in ./uploads by filename.
+    Query params:
+      - filename: the filename under ./uploads (required)
+
+    Security: only files under ./uploads are returned to avoid path traversal.
+    """
+    filename = request.args.get('filename')
+    print(f"[DEBUG] /documents/text called with filename={filename}")
+    if not filename:
+        return jsonify({'error': 'filename query parameter required'}), 400
+
+    # Normalize filename to avoid path traversal
+    safe_name = os.path.basename(filename)
+    upload_dir = os.path.abspath('./uploads')
+    file_path = os.path.join(upload_dir, safe_name)
+
+    if not os.path.exists(file_path):
+        return jsonify({'error': 'file not found'}), 404
+
+    try:
+        # If the file is a PDF, use our PDF parser to extract text
+        _, ext = os.path.splitext(file_path)
+        ext = (ext or '').lower()
+        if ext == '.pdf':
+            from utils.pdf_parser import extract_text_from_pdf
+            content = extract_text_from_pdf(file_path)
+        else:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+
+        return jsonify({'filename': safe_name, 'text': content})
+    except Exception as e:
+        print(f"[ERROR] get_document_text failed for {file_path}: {e}")
+        return jsonify({'error': 'failed to read document text', 'details': str(e)}), 500
 
 @document_bp.route("/upload/international", methods=["POST"])
 def upload_international_document():
