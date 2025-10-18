@@ -15,7 +15,7 @@ This will:
 import os
 import sys
 from pathlib import Path
-from connection import get_db
+from .connection import get_db
 
 def test_connection():
     """Test database connection before running migrations."""
@@ -59,53 +59,36 @@ def run_migration(migration_file: str):
         print(f"❌ Migration failed: {e}")
         return False
 
-def verify_tables():
-    """Verify that tables were created successfully."""
-    print("\n🔍 Verifying tables...")
+def verify_documents_v2_table():
+    """Verify that documents_v2 table was created successfully."""
+    print("\n🔍 Verifying documents_v2 table...")
     
     try:
         conn = get_db()
         cursor = conn.cursor()
         
-        # Check chat_history_sessions table
+        # Check documents_v2 table
         cursor.execute("""
             SELECT table_name, column_name, data_type 
             FROM information_schema.columns 
-            WHERE table_name = 'chat_history_sessions'
+            WHERE table_name = 'documents_v2'
             ORDER BY ordinal_position;
         """)
-        sessions_columns = cursor.fetchall()
+        columns = cursor.fetchall()
         
-        if sessions_columns:
-            print("\n✅ Table 'chat_history_sessions' created with columns:")
-            for table, column, dtype in sessions_columns:
+        if columns:
+            print("\n✅ Table 'documents_v2' created with columns:")
+            for table, column, dtype in columns:
                 print(f"   - {column}: {dtype}")
         else:
-            print("❌ Table 'chat_history_sessions' not found")
-            return False
-        
-        # Check chat_history_messages table
-        cursor.execute("""
-            SELECT table_name, column_name, data_type 
-            FROM information_schema.columns 
-            WHERE table_name = 'chat_history_messages'
-            ORDER BY ordinal_position;
-        """)
-        messages_columns = cursor.fetchall()
-        
-        if messages_columns:
-            print("\n✅ Table 'chat_history_messages' created with columns:")
-            for table, column, dtype in messages_columns:
-                print(f"   - {column}: {dtype}")
-        else:
-            print("❌ Table 'chat_history_messages' not found")
+            print("❌ Table 'documents_v2' not found")
             return False
         
         # Check indexes
         cursor.execute("""
             SELECT indexname 
             FROM pg_indexes 
-            WHERE tablename IN ('chat_history_sessions', 'chat_history_messages')
+            WHERE tablename = 'documents_v2'
             ORDER BY indexname;
         """)
         indexes = cursor.fetchall()
@@ -140,22 +123,23 @@ def main():
         print("  - DB_PORT")
         sys.exit(1)
     
-    # Step 2: Run migration
-    if not run_migration("002_create_chat_history_tables.sql"):
+    # Step 2: Run documents_v2 migration
+    if not run_migration("003_create_documents_v2_table.sql"):
         print("\n❌ Migration failed")
         sys.exit(1)
     
-    # Step 3: Verify tables
-    if not verify_tables():
+    # Step 3: Verify table
+    if not verify_documents_v2_table():
         print("\n❌ Verification failed")
         sys.exit(1)
     
     print("\n" + "=" * 60)
-    print("🎉 Migration completed successfully!")
+    print("🎉 Documents V2 Migration completed successfully!")
     print("=" * 60)
     print("\nNext steps:")
-    print("  1. Review the created tables in your database")
-    print("  2. Proceed to Step 2: Create ChatRepository class")
+    print("  1. Review the created documents_v2 table in your database")
+    print("  2. Test the new /upload_v2 endpoint")
+    print("  3. Use RetrieverV2 for citation-enabled retrieval")
     print()
 
 if __name__ == "__main__":

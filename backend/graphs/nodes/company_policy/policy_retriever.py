@@ -7,7 +7,7 @@ Specific to company policy graph.
 
 from typing import Dict, Any
 from langchain_core.callbacks import BaseCallbackHandler
-from agents.chuck_retriever import Retriever
+from agents.chunk_retriever_v2 import RetrieverV2
 from graphs.nodes.models import PolicyRetrieverNodeInput, PolicyRetrieverNodeOutput
 
 
@@ -22,7 +22,7 @@ class PolicyRetrieverCallbackHandler(BaseCallbackHandler):
 
 
 # Shared instance
-_policy_retriever = Retriever()
+_policy_retriever = RetrieverV2()
 
 
 def policy_retriever_node(state) -> Dict[str, Any]:
@@ -65,23 +65,29 @@ def policy_retriever_node(state) -> Dict[str, Any]:
     )
 
     try:
-        # Use retriever to get chunks
-        result = _policy_retriever.retrieve_chunks(query, top_k=5)
+        # Use retriever to get chunks with citations
+        result = _policy_retriever.retrieve_chunks_with_citations(query, top_k=5)
 
         if result["status"] == "success":
             chunks = result["chunks"]
-            print(f"[POLICY_RETRIEVER_NODE] ✓ Retrieved {len(chunks)} chunks")
+            print(f"[POLICY_RETRIEVER_NODE] ✓ Retrieved {len(chunks)} chunks with citations")
             # Extract content strings for output validation
             policy_context = [chunk.get("content", "") for chunk in chunks if chunk.get("content")]
+            # Store full chunk data including citations for context combination
+            policy_chunks_with_metadata = chunks
         else:
             print("[POLICY_RETRIEVER_NODE] ✗ Retrieval failed")
             policy_context = []
+            policy_chunks_with_metadata = []
 
         # Emit retriever end event
         callback_handler.on_retriever_end(documents=policy_context)
 
-        # Return validated output
-        output_data = PolicyRetrieverNodeOutput(policy_context=policy_context)
+        # Return validated output with citation metadata
+        output_data = PolicyRetrieverNodeOutput(
+            policy_context=policy_context,
+            policy_chunks_with_metadata=policy_chunks_with_metadata
+        )
         return output_data.model_dump()
 
     except Exception as e:

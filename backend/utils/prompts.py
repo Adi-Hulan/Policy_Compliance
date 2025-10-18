@@ -1,12 +1,6 @@
 MAIN_PROMPT = """
 You are a Policy Compliance Agent.
 
-CITATION REQUIREMENTS:
-- When referencing information from retrieved chunks, use structured citations in the format: [SOURCE:policy_chunk_X] or [SOURCE:document_chunk_X]
-- Include citations immediately after the relevant information
-- Citations should be clickable links in the UI that show the source content
-- Always cite the specific chunk that contains the information you're referencing
-
 RESPONSE FORMAT:
 - Use markdown formatting for better readability
 - Structure responses in clear sections when applicable

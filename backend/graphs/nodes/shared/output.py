@@ -6,45 +6,9 @@ Used by both company policy and general purpose graphs.
 """
 
 from typing import Dict, Any, List
-import re
 from langchain_core.callbacks import BaseCallbackHandler
 from db.repositories.chat_repository import ChatRepository
 from graphs.nodes.models import OutputNodeInput, OutputNodeOutput
-
-
-def parse_citations_from_response(response_text: str, chunk_metadata: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """
-    Parse citation markers from LLM response and link them to chunk metadata.
-
-    Looks for patterns like [SOURCE:policy_chunk_1] or [SOURCE:document_chunk_2]
-    """
-    citations = []
-
-    # Pattern to match citation markers
-    citation_pattern = r'\[SOURCE:([a-zA-Z_]+_chunk_\d+)\]'
-
-    for match in re.finditer(citation_pattern, response_text):
-        chunk_id = match.group(1)
-
-        # Find the corresponding chunk metadata
-        chunk_info = None
-        for chunk in chunk_metadata:
-            if chunk.get('id') == chunk_id:
-                chunk_info = chunk
-                break
-
-        if chunk_info:
-            citations.append({
-                'text': match.group(0),  # The full [SOURCE:...] text
-                'chunk_id': chunk_id,
-                'start_pos': match.start(),
-                'end_pos': match.end(),
-                'chunk_content': chunk_info.get('content', ''),
-                'chunk_type': chunk_info.get('type', ''),
-                'source': chunk_info.get('source', '')
-            })
-
-    return citations
 
 
 class OutputCallbackHandler(BaseCallbackHandler):
@@ -59,7 +23,7 @@ class OutputCallbackHandler(BaseCallbackHandler):
 
 def get_chat_repository(state) -> ChatRepository:
     """Extract ChatRepository from state or create new instance."""
-    repo = state.chat_repository
+    repo = state.chat_repository if hasattr(state, 'chat_repository') else state.get('chat_repository')
     if repo:
         return repo
     # Fallback
@@ -82,10 +46,11 @@ def output_node(state: Dict[str, Any]) -> Dict[str, Any]:
         - final: Complete response with history
     """
     print(f"[OUTPUT_NODE] Processing state with response: {getattr(state, 'response', '')[:100]}...")
-    print(f"[OUTPUT_NODE] Is final result: {getattr(state, 'final', False)}")
+    print(f"[OUTPUT_NODE] Is final result: {state.get('final', False) if hasattr(state, 'get') else getattr(state, 'final', False)}")
 
     # Check if this is a streaming token (not final) - just pass it through
-    if not getattr(state, 'final', False):
+    final_flag = state.get('final', False) if hasattr(state, 'get') else getattr(state, 'final', False)
+    if not final_flag:
         print("[OUTPUT_NODE] Streaming token - passing through without processing")
         return {"response": getattr(state, 'response', '')}
 
@@ -94,10 +59,15 @@ def output_node(state: Dict[str, Any]) -> Dict[str, Any]:
 
     # Validate inputs using Pydantic model
     try:
+        # Handle both object attributes and dict keys
+        session_id = state.session_id if hasattr(state, 'session_id') else state.get('session_id')
+        response = state.response if hasattr(state, 'response') else state.get('response')
+        chat_repo = get_chat_repository(state)
+
         input_data = OutputNodeInput(
-            session_id=state.session_id,
-            response=state.response,
-            chat_repository=get_chat_repository(state)
+            session_id=session_id,
+            response=response,
+            chat_repository=chat_repo
         )
     except Exception as e:
         raise ValueError(f"Output input validation failed: {e}")
@@ -106,11 +76,17 @@ def output_node(state: Dict[str, Any]) -> Dict[str, Any]:
 
     response_text = input_data.response
     session_id = input_data.session_id
-    chunk_metadata = getattr(state, 'chunk_metadata', []) or []
+    chunk_metadata = (state.get('chunk_metadata', []) if hasattr(state, 'get') else getattr(state, 'chunk_metadata', [])) or []
 
-    # Parse citations from the response
-    citations = parse_citations_from_response(response_text, chunk_metadata)
-    print(f"[OUTPUT_NODE] Found {len(citations)} citations in response")
+    # Get citation metadata from claim validator (if available)
+    citation_metadata = state.get('citation_metadata', []) if hasattr(state, 'get') else getattr(state, 'citation_metadata', []) or []
+    validation_recommendations = state.get('validation_recommendations', {}) if hasattr(state, 'get') else getattr(state, 'validation_recommendations', {}) or {}
+
+    # Extract document_info from state
+    document_info = state.get('document_info', None) if hasattr(state, 'get') else getattr(state, 'document_info', None)
+
+    # Debug: Log document_info in the final output
+    print(f"[DEBUG] Document Info: {document_info}")
 
     # Emit retriever start event for history serialization
     callback_handler = OutputCallbackHandler()
@@ -133,13 +109,18 @@ def output_node(state: Dict[str, Any]) -> Dict[str, Any]:
 
     print(f"[OUTPUT_NODE] ✓ Response length: {len(response_text)} chars")
     print(f"[OUTPUT_NODE] ✓ History: {len(history_serialized)} messages")
-    print(f"[OUTPUT_NODE] ✓ Citations: {len(citations)}")
+    print(f"[OUTPUT_NODE] ✓ Citations: {len(citation_metadata)} validated")
 
     # Return validated output with citations and chunk metadata
     output_data = OutputNodeOutput(
         content=response_text,
         history=history_serialized,
-        citations=citations,
-        chunk_metadata=chunk_metadata
+        chunk_metadata=chunk_metadata,
+        citation_metadata=citation_metadata,
+        validation_recommendations=validation_recommendations,
+        document_info=document_info,  # Add document_info here
+        final=True  # Explicitly mark as final
     )
+    # Debug: Print the final JSON response sent to the frontend
+    print(f"[OUTPUT_NODE] Final JSON response: {output_data.model_dump()}")
     return output_data.model_dump()

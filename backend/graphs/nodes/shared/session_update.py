@@ -8,30 +8,7 @@ Used by both company policy and general purpose graphs.
 from typing import Dict, Any
 from db.repositories.chat_repository import ChatRepository
 from graphs.nodes.models import SessionUpdateNodeInput, SessionUpdateNodeOutput
-
-
-def session_update_node(state: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Save conversation to database.
-
-    Args:
-        state: Current graph state
-
-    Returns:
-        Empty dict (side effects only)
-
-    Streams:
-        - on_chain_end: Session update completed
-    """
-
-
-def get_chat_repository(state) -> ChatRepository:
-    """Extract ChatRepository from state or create new instance."""
-    repo = state.chat_repository
-    if repo:
-        return repo
-    # Fallback
-    return ChatRepository()
+from .output import get_chat_repository
 
 
 def session_update_node(state: Dict[str, Any]) -> Dict[str, Any]:
@@ -98,6 +75,36 @@ def session_update_node(state: Dict[str, Any]) -> Dict[str, Any]:
     except Exception as e:
         print(f"[SESSION_UPDATE_NODE] ✗ Save failed: {e}")
 
-    # Return validated output (empty)
+    # Return validated output (empty) but preserve all state fields
     output_data = SessionUpdateNodeOutput()
-    return output_data.model_dump()
+    result = output_data.model_dump()
+    
+    # Debug: Check citations in state before forwarding
+    citation_metadata = getattr(state, 'citation_metadata', None)
+    print(f"[SESSION_UPDATE_NODE] Citations in state: {len(citation_metadata) if citation_metadata else 0}")
+    
+    # Preserve only the fields needed by the output_node
+    result.update({
+        'session_id': state.session_id,
+        'response': state.response,
+        'chat_repository': state.chat_repository,
+        'citation_metadata': citation_metadata,
+        'validation_recommendations': getattr(state, 'validation_recommendations', None),
+        'chunk_metadata': getattr(state, 'chunk_metadata', None),
+        'final': True,  # Always set final=True for output processing
+    })
+    
+    # Ensure the final flag is set to True
+    result['final'] = True
+    
+    # Extract document_info from state if available
+    document_info = getattr(state, 'document_info', None)
+
+    # Update result with document_info
+    result.update({
+        'document_info': document_info,
+    })
+    
+    print(f"[SESSION_UPDATE_NODE] Forwarding citations to output: {len(result.get('citation_metadata', []))}")
+    
+    return result

@@ -30,7 +30,9 @@ def context_combination_node(state) -> Dict[str, Any]:
             message=state.message,
             policy_context=state.policy_context or [],
             doc_context=state.doc_context or [],
-            history=state.history or []
+            history=state.history or [],
+            policy_chunks_with_metadata=getattr(state, 'policy_chunks_with_metadata', []) or [],
+            doc_chunks_with_metadata=getattr(state, 'doc_chunks_with_metadata', []) or []
         )
     except Exception as e:
         raise ValueError(f"Context combination input validation failed: {e}")
@@ -38,8 +40,11 @@ def context_combination_node(state) -> Dict[str, Any]:
     policy_context = input_data.policy_context
     doc_context = input_data.doc_context
     chat_history = input_data.history
+    policy_chunks_with_metadata = input_data.policy_chunks_with_metadata
+    doc_chunks_with_metadata = input_data.doc_chunks_with_metadata
 
     print(f"[CONTEXT_COMBINATION_NODE] Combining {len(policy_context)} policy chunks, {len(doc_context)} doc chunks with {len(chat_history)} history items")
+    print(f"[CONTEXT_COMBINATION_NODE] Policy chunks with metadata: {len(policy_chunks_with_metadata)}, Doc chunks with metadata: {len(doc_chunks_with_metadata)}")
 
     try:
         # Track chunk metadata for clickable links
@@ -50,32 +55,66 @@ def context_combination_node(state) -> Dict[str, Any]:
         for i, chunk in enumerate(policy_context):
             if chunk:
                 chunk_id = f"policy_chunk_{i+1}"
-                policy_parts.append(f"Policy Chunk {i+1} (ID: {chunk_id}):\n{chunk}\n")
+                
+                # Check if we have citation metadata for this chunk
+                citation_info = ""
+                if i < len(policy_chunks_with_metadata) and policy_chunks_with_metadata[i].get('citation'):
+                    citation = policy_chunks_with_metadata[i]['citation']
+                    citation_info = f" [Page {citation.get('page', 'N/A')}, chars {citation.get('char_start', 0)}-{citation.get('char_end', 0)}]"
+                
+                policy_parts.append(f"Policy Chunk {i+1} (ID: {chunk_id}){citation_info}:\n{chunk}\n")
 
-                # Store metadata for UI links
-                chunk_metadata.append({
+                # Store metadata for UI links with citation info
+                metadata_entry = {
                     "id": chunk_id,
                     "type": "policy",
                     "index": i+1,
                     "content": chunk,
                     "source": "Company Policy Database"
-                })
+                }
+                
+                # Add citation metadata if available
+                if i < len(policy_chunks_with_metadata):
+                    chunk_meta = policy_chunks_with_metadata[i]
+                    if chunk_meta.get('citation'):
+                        metadata_entry["citation"] = chunk_meta['citation']
+                    if chunk_meta.get('id'):
+                        metadata_entry["chunk_db_id"] = chunk_meta['id']
+                
+                chunk_metadata.append(metadata_entry)
 
         # Format document context
         doc_parts = []
         for i, chunk in enumerate(doc_context):
             if chunk:
                 chunk_id = f"document_chunk_{i+1}"
-                doc_parts.append(f"Document Chunk {i+1} (ID: {chunk_id}):\n{chunk}\n")
+                
+                # Check if we have citation metadata for this chunk
+                citation_info = ""
+                if i < len(doc_chunks_with_metadata) and doc_chunks_with_metadata[i].get('citation'):
+                    citation = doc_chunks_with_metadata[i]['citation']
+                    citation_info = f" [Page {citation.get('page', 'N/A')}, chars {citation.get('char_start', 0)}-{citation.get('char_end', 0)}]"
+                
+                doc_parts.append(f"Document Chunk {i+1} (ID: {chunk_id}){citation_info}:\n{chunk}\n")
 
-                # Store metadata for UI links
-                chunk_metadata.append({
+                # Store metadata for UI links with citation info
+                metadata_entry = {
                     "id": chunk_id,
                     "type": "document",
                     "index": i+1,
                     "content": chunk,
                     "source": state.tmp_file_path or "Uploaded Document"
-                })
+                }
+                
+                # Add citation metadata if available
+                if i < len(doc_chunks_with_metadata):
+                    chunk_meta = doc_chunks_with_metadata[i]
+                    if chunk_meta.get('citation'):
+                        metadata_entry["citation"] = chunk_meta['citation']
+                    if chunk_meta.get('id'):
+                        metadata_entry["chunk_db_id"] = chunk_meta['id']
+                
+                chunk_metadata.append(metadata_entry)
 
         # Format chat history
         history_parts = []

@@ -28,6 +28,7 @@ from .nodes.shared.history import history_node
 from .nodes.shared.llm import llm_node
 from .nodes.shared.session_update import session_update_node
 from .nodes.shared.output import output_node
+from .nodes.shared.claim_validator import claim_validator_node
 
 # Import company policy specific nodes
 from .nodes.company_policy.policy_retriever import policy_retriever_node
@@ -81,13 +82,10 @@ def route_after_history(state: CompanyPolicyState) -> str:
         "has_doc": Existing temp table found, skip to retrieval
         "no_doc": No document, skip document pipeline
     """
-    print("[ROUTER] Routing after history")
     
     safe_session_id = state.safe_session_id
     document_url = state.document_url
     
-    print(f"[ROUTER] Session: {safe_session_id}")
-    print(f"[ROUTER] Document URL: {document_url}")
     
     # Check if temp table exists
     has_temp = False
@@ -100,17 +98,13 @@ def route_after_history(state: CompanyPolicyState) -> str:
             cur.close()
             conn.close()
             has_temp = bool(exists_row and exists_row[0])
-            print(f"[ROUTER] Temp table exists: {has_temp}")
         except Exception as e:
-            print(f"[ROUTER] ⚠ Error checking temp table: {e}")
+            pass  # Exception ignored for temp table check
     
     if has_temp:
-        print("[ROUTER] → has_doc (existing temp table)")
         return "has_doc"
     if document_url:
-        print("[ROUTER] → with_doc (new document URL)")
         return "with_doc"
-    print("[ROUTER] → no_doc")
     return "no_doc"
 
 
@@ -122,7 +116,6 @@ def route_after_policy(state: CompanyPolicyState) -> str:
         "need_doc": Temp table exists, retrieve document context
         "no_doc_needed": No temp table, skip to context combination
     """
-    print("[ROUTER] Routing after policy retrieval")
     
     safe_session_id = state.safe_session_id
     
@@ -137,15 +130,12 @@ def route_after_policy(state: CompanyPolicyState) -> str:
             cur.close()
             conn.close()
             has_temp = bool(exists_row and exists_row[0])
-            print(f"[ROUTER] Temp table exists: {has_temp}")
         except Exception as e:
-            print(f"[ROUTER] ⚠ Error checking temp table: {e}")
+            pass  # Exception ignored for temp table check
     
     if has_temp:
-        print("[ROUTER] → need_doc (retrieve from temp table)")
         return "need_doc"
     else:
-        print("[ROUTER] → no_doc_needed (skip document retrieval)")
         return "no_doc_needed"
 
 
@@ -157,7 +147,7 @@ def build_company_policy_graph():
     Returns:
         Compiled LangGraph instance
     """
-    print("[GRAPH_BUILDER] Building company policy graph")
+    # Building company policy graph
     
     graph = StateGraph(CompanyPolicyState)
     
@@ -170,6 +160,7 @@ def build_company_policy_graph():
     graph.add_node("doc_retriever", document_retriever_node)
     graph.add_node("context_combine", context_combination_node)
     graph.add_node("llm", company_policy_llm_node)
+    graph.add_node("claim_validator", claim_validator_node)
     graph.add_node("session_update", session_update_node)
     graph.add_node("output", output_node)
     
@@ -202,14 +193,15 @@ def build_company_policy_graph():
         },
     )
     
-    # Linear flow: doc_retriever → context_combine → llm → session_update → output → END
+    # Linear flow: doc_retriever → context_combine → llm → claim_validator → session_update → output → END
     graph.add_edge("doc_retriever", "context_combine")
     graph.add_edge("context_combine", "llm")
-    graph.add_edge("llm", "session_update")
+    graph.add_edge("llm", "claim_validator")
+    graph.add_edge("claim_validator", "session_update")
     graph.add_edge("session_update", "output")
     graph.add_edge("output", END)
     
-    print("[GRAPH_BUILDER] ✓ Company policy graph compiled")
+    # Company policy graph compiled
     return graph.compile()
 
 
@@ -227,9 +219,10 @@ def run_company_policy(session_id: str, message: str, document_url: str = None, 
     Returns:
         Response text
     """
-    print(f"[RUN_COMPANY_POLICY] Starting synchronous execution")
-    print(f"[RUN_COMPANY_POLICY] Session: {session_id}")
-    print(f"[RUN_COMPANY_POLICY] Message: {message[:100]}...")
+    # Debug: Start of run_company_policy
+    # print(f"[RUN_COMPANY_POLICY] Starting synchronous execution")
+    # print(f"[RUN_COMPANY_POLICY] Session: {session_id}")
+    # print(f"[RUN_COMPANY_POLICY] Message: {message[:100]}...")
     
     try:
         app = build_company_policy_graph()
@@ -240,18 +233,31 @@ def run_company_policy(session_id: str, message: str, document_url: str = None, 
             "user_id": user_id,
             "chat_repository": ChatRepository(),
         }
-        
-        print("[RUN_COMPANY_POLICY] Invoking graph...")
+
+        # Debug: Invoking graph
+        # print("[RUN_COMPANY_POLICY] Invoking graph...")
         final_state = app.invoke(initial_state)
-        
+
+        # Debug: Check citations in final_state before extracting content
+        if hasattr(final_state, 'citations'):
+            print(f"[DEBUG] Citations in final_state: {final_state.citations}")
+        else:
+            print("[DEBUG] No citations attribute in final_state")
+
         # Extract response
         content = final_state.content or final_state.response or ""
-        
-        print(f"[RUN_COMPANY_POLICY] ✓ Response length: {len(content)} chars")
+
+        # Debug: Check for citations in content
+        if hasattr(final_state, 'citations'):
+            print(f"[DEBUG] Citations passed to output: {final_state.citations}")
+        else:
+            print("[DEBUG] No citations attribute in final_state at output")
+
+        # print(f"[RUN_COMPANY_POLICY] ✓ Response length: {len(content)} chars")
         return content
-        
+
     except Exception as e:
-        print(f"[RUN_COMPANY_POLICY] ✗ Error: {e}")
+        # print(f"[RUN_COMPANY_POLICY] ✗ Error: {e}")
         import traceback
         traceback.print_exc()
         return f"Error processing request: {str(e)}"

@@ -77,7 +77,6 @@ def _extract_token(data_section: Any) -> str:
     if isinstance(chunk, str):
         # Remove citation markers for clean streaming
         clean_chunk = re.sub(r'\[SOURCE:[^\]]+\]', '', chunk)
-        print(f"[TOKEN_EXTRACT] ✓ String chunk: '{chunk}' -> clean: '{clean_chunk}'")
         return clean_chunk
 
     # Handle dict chunks
@@ -92,7 +91,6 @@ def _extract_token(data_section: Any) -> str:
             )
             # Remove citation markers
             clean_token = re.sub(r'\[SOURCE:[^\]]+\]', '', token)
-            print(f"[TOKEN_EXTRACT] ✓ List content chunk: '{token}' -> clean: '{clean_token}'")
             return clean_token
 
         # Handle string content
@@ -433,16 +431,16 @@ def map_to_ui_payload(extracted_data: Dict[str, Any], initial_state: Dict[str, A
             # Output node
             elif ui_key == "output" and not is_start:
                 final_text = ""
-                citations = []
-                chunk_metadata = []
+                citation_metadata = []
+                validation_recommendations = {}
 
                 if isinstance(output, dict):
                     final_text = _extract_text(output.get("content") or output)
                     if not final_text:
                         final_text = output.get("response", "")
                     # Extract citations and chunk metadata
-                    citations = output.get("citations", [])
-                    chunk_metadata = output.get("chunk_metadata", [])
+                    citation_metadata = output.get("citation_metadata", [])
+                    validation_recommendations = output.get("validation_recommendations", {})
 
                 if not final_text:
                     final_text = _extract_text(raw_data)
@@ -452,11 +450,11 @@ def map_to_ui_payload(extracted_data: Dict[str, Any], initial_state: Dict[str, A
                     "category": "content",
                     "node": node,
                     "content": final_text,
-                    "citations": citations,
-                    "chunk_metadata": chunk_metadata
+                    "citation_metadata": citation_metadata,
+                    "validation_recommendations": validation_recommendations
                 }
 
-                print(f"[UI_PAYLOAD] ✓ FINAL payload: content_length={len(final_text)}, citations={len(citations)}")
+                print(f"[UI_PAYLOAD] Final payload: {json.dumps(payload, indent=2)}")
                 payloads.append(payload)
 
             # Generic fallback for other nodes

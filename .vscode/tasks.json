@@ -1,0 +1,14 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Test Retrieve Citation Endpoint",
+			"type": "shell",
+			"command": "uvicorn backend.app_fastapi:app --reload",
+			"args": [],
+			"isBackground": true,
+			"problemMatcher": [],
+			"group": "build"
+		}
+	]
+}

@@ -88,6 +88,8 @@ class OutputNodeOutput(NodeOutput):
     history: List[Dict[str, str]]
     citations: List[Dict[str, Any]] = Field(default_factory=list)
     chunk_metadata: List[Dict[str, Any]] = Field(default_factory=list)
+    citation_metadata: List[Dict[str, Any]] = Field(default_factory=list)
+    validation_recommendations: Dict[str, Any] = Field(default_factory=dict)
 
 
 # --- Company Policy Node Models ---
@@ -120,6 +122,7 @@ class PolicyRetrieverNodeInput(NodeInput):
 class PolicyRetrieverNodeOutput(NodeOutput):
     """Output from policy retriever node."""
     policy_context: List[str]
+    policy_chunks_with_metadata: List[Dict[str, Any]] = []
 
 
 class DocumentRetrieverNodeInput(NodeInput):
@@ -139,12 +142,27 @@ class ContextCombinationNodeInput(NodeInput):
     policy_context: List[str]
     doc_context: List[str]
     history: List[BaseMessage]
+    policy_chunks_with_metadata: List[Dict[str, Any]] = Field(default_factory=list)
+    doc_chunks_with_metadata: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 class ContextCombinationNodeOutput(NodeOutput):
     """Output from context combination node."""
     full_user_message: str
     chunk_metadata: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class ClaimValidatorNodeInput(NodeInput):
+    """Input for claim validator node."""
+    llm_response: str
+    policy_chunks: List[Dict[str, Any]] = Field(default_factory=list)
+    doc_chunks: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class ClaimValidatorNodeOutput(NodeOutput):
+    """Output from claim validator node."""
+    response: str
+    citation_metadata: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 # --- Graph State Models ---
@@ -169,6 +187,9 @@ class BaseGraphState(BaseModel):
     # Final outputs
     response: Optional[str] = None
     content: Optional[str] = None
+    
+    # Control flags
+    final: Optional[bool] = None
 
 
 class CompanyPolicyState(BaseGraphState):
@@ -179,6 +200,12 @@ class CompanyPolicyState(BaseGraphState):
     tmp_file_path: Optional[str] = None
     full_user_message: Optional[str] = None
     chunk_metadata: Optional[List[Dict[str, Any]]] = None
+    policy_chunks_with_metadata: Optional[List[Dict[str, Any]]] = None
+    doc_chunks_with_metadata: Optional[List[Dict[str, Any]]] = None
+    
+    # Citation validation data
+    citation_metadata: Optional[List[Dict[str, Any]]] = None
+    validation_recommendations: Optional[Dict[str, Any]] = None
 
 
 class GeneralPurposeState(BaseGraphState):

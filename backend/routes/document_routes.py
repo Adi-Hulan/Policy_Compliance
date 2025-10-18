@@ -1,18 +1,24 @@
 from flask import Blueprint, request, jsonify
-from agents.document_processor import DocumentProcessor
+from agents.document_processor import DocumentProcessor, DocumentProcessorV2
 import os
 import tempfile
 import requests
 from agents.policy_analyze_document_processor import AnalyzeDocumentProcessorTemp
 from agents.policy_analyze_chunk_retriever import PolicyAnalyzeRetriever
+from agents.chunk_retriever_v2 import RetrieverV2
 from google import genai
 from middleware.auth import require_auth
+from fastapi import APIRouter, HTTPException, Query
+from pathlib import Path
 
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 document_bp = Blueprint("documents", __name__)
 processor = DocumentProcessor()
+processor_v2 = DocumentProcessorV2()
+retriever_v2 = RetrieverV2()
 doc_processor = AnalyzeDocumentProcessorTemp()
 policyAnalyzeRetriever = PolicyAnalyzeRetriever()
+router = APIRouter()
 
 @document_bp.route("/upload", methods=["POST"])
 @require_auth
@@ -29,6 +35,38 @@ def upload_document():
     file.save(file_path)
 
     result = processor.process(file_path)
+    return jsonify(result)
+
+@document_bp.route("/upload_v2", methods=["POST"])
+@require_auth
+def upload_document_v2():
+    """Test endpoint for the enhanced document processor with citation support."""
+    if "file" not in request.files:
+        return jsonify({"error": "No file provided"}), 400
+    
+    file = request.files["file"]
+    # Ensure uploads directory exists
+    upload_dir = "./uploads"
+    os.makedirs(upload_dir, exist_ok=True)
+
+    file_path = os.path.join(upload_dir, file.filename)
+    file.save(file_path)
+
+    result = processor_v2.process(file_path)
+    return jsonify(result)
+
+@document_bp.route("/query_v2", methods=["POST"])
+@require_auth
+def query_documents_v2():
+    """Test endpoint for enhanced retrieval with citation support."""
+    data = request.json
+    question = data.get("question")
+    
+    if not question:
+        return jsonify({"error": "No question provided"}), 400
+    
+    top_k = data.get("top_k", 5)
+    result = retriever_v2.retrieve_chunks_with_citations(question, top_k)
     return jsonify(result)
 
 @document_bp.route("/analyze", methods=["POST"])
@@ -111,4 +149,42 @@ def analyze_document():
 
     finally:
         os.remove(tmp_file_path)
+
+@router.get("/retrieve-citation")
+def retrieve_citation(
+    file_path: str = Query(..., description="Path to the document file"),
+    char_start: int = Query(..., description="Start character index of the citation"),
+    char_end: int = Query(..., description="End character index of the citation")
+):
+    """
+    Retrieve a citation from a document based on character range.
+
+    Args:
+        file_path (str): Path to the document file.
+        char_start (int): Start character index of the citation.
+        char_end (int): End character index of the citation.
+
+    Returns:
+        dict: Extracted citation text.
+    """
+    try:
+        # Validate file existence
+        document = Path(file_path)
+        if not document.exists():
+            raise HTTPException(status_code=404, detail="Document not found")
+
+        # Read the document content
+        with document.open("r", encoding="utf-8") as file:
+            content = file.read()
+
+        # Validate character range
+        if char_start < 0 or char_end > len(content) or char_start >= char_end:
+            raise HTTPException(status_code=400, detail="Invalid character range")
+
+        # Extract the citation text
+        citation_text = content[char_start:char_end]
+        return {"citation_text": citation_text}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
 
