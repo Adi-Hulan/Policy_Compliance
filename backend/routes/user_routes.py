@@ -1,5 +1,6 @@
-from flask import Blueprint
+from flask import Blueprint, jsonify, g
 from flask import request, jsonify
+from middleware.auth import require_auth
 
 from utils.supabase_client import supabase
 
@@ -90,13 +91,16 @@ def create_subscription():
         return jsonify({"error": str(e)}), 500
 
 
-@user_bp.route("/subscrition/user/<user_id>", methods=["GET"])
-def get_subscriptions_by_user(user_id):
+@user_bp.route("/subscrition/user/", methods=["GET"])
+@require_auth
+def get_subscriptions_by_user():
     """Return subscriptions for a given user_id.
 
     Returns a list (possibly empty) of subscription records for the user.
     """
     try:
+        user_id = getattr(g, "user_id", None)
+        print(user_id)
         resp = (
             supabase.table("subscriptions")
             .select("*")
