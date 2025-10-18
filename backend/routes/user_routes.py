@@ -69,26 +69,6 @@ def create_subscription():
         print(f"Error handling subscription: {e}")
         return jsonify({"error": str(e)}), 500
 
-    try:
-        # Insert into Supabase. Assumes a table named `subscriptions` exists.
-        resp = supabase.table("subscriptions").insert(record).execute()
-
-        # supabase client returns an object with `data` and `error` attributes
-        if hasattr(resp, "error") and resp.error:
-            return jsonify({"error": str(resp.error)}), 500
-
-        # Some client versions return a dict-like response
-        data_out = None
-        if hasattr(resp, "data"):
-            data_out = resp.data
-        elif isinstance(resp, dict):
-            data_out = resp.get("data")
-
-        return jsonify({"status": "success", "data": data_out}), 201
-
-    except Exception as e:
-        print(f"Error inserting subscription: {e}")
-        return jsonify({"error": str(e)}), 500
 
 
 @user_bp.route("/subscrition/user/", methods=["GET"])
