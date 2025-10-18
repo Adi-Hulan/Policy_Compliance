@@ -8,7 +8,7 @@ class PolicyAnalyzeRetriever:
         self.client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
         self.model = "gemini-embedding-001"
 
-    def retrieve_for_embeddings(self, embeddings, safe_session_id, top_k=3):
+    def retrieve_for_embeddings(self, embeddings, safe_session_id, top_k=1):
         print(f"Retrieving chunks for multiple embeddings in temp_retriever.")
         try:
             conn = get_db()

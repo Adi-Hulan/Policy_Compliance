@@ -61,7 +61,7 @@ def analyze_document():
         retrieval_results = policyAnalyzeRetriever.retrieve_for_embeddings(
             [c["embedding"] for c in chunk_embeddings],
             safe_session_id,
-            top_k=3
+            top_k=1
         )
 
         # Map back attached chunks to matching policies
@@ -70,12 +70,13 @@ def analyze_document():
             for idx, matches in retrieval_results["results"].items():
                 attached_chunk = chunk_embeddings[int(idx)]["chunk"]
                 for match in matches:
-                    paired_contexts.append({
-                        "attached_chunk": attached_chunk,
-                        "matching_policy": match["content"],
-                        "distance": match["distance"],
-                        "policy_type": "company_policy"
-                    })
+                    if match["distance"] < 0.4:
+                        paired_contexts.append({
+                            "attached_chunk": attached_chunk,
+                            "matching_policy": match["content"],
+                            "distance": match["distance"],
+                            "policy_type": "company_policy"
+                        })
                     
         # Process international policies if selected
         if selected_policies:
@@ -86,21 +87,22 @@ def analyze_document():
                     document_embeddings,
                     safe_session_id,
                     policy,
-                    top_k=3
+                    top_k=1
                 )
                 
                 if int_policy_results["status"] == "success":
                     for idx, matches in int_policy_results["results"].items():
                         attached_chunk = chunk_embeddings[int(idx)]["chunk"]
                         for match in matches:
-                            paired_contexts.append({
-                                "attached_chunk": attached_chunk,
-                                "matching_policy": match["content"],
-                                "distance": match["distance"],
-                                "policy_type": f"international_policy_{policy}"
-                            })
+                            if match["distance"] < 0.4:
+                                paired_contexts.append({
+                                    "attached_chunk": attached_chunk,
+                                    "matching_policy": match["content"],
+                                    "distance": match["distance"],
+                                    "policy_type": f"international_policy_{policy}"
+                                })
 
-        print(f"Total paired contexts: {paired_contexts}")
+        print(f"Total paired contexts: {len(paired_contexts)}")
         # Prompt Gemini
         prompt = f"""
         You are a compliance analyzer. Compare attached document clauses with both company policies and international regulations. 
@@ -140,7 +142,7 @@ def analyze_document():
         except json.JSONDecodeError:
             violations = {"error": "Failed to parse LLM response", "raw": raw_text}
 
-        print("Violations found:", violations)
+        print("Violations found:", len(violations))
         return jsonify(violations)
 
     finally:
