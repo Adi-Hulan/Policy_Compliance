@@ -62,7 +62,7 @@ def context_combination_node(state) -> Dict[str, Any]:
                     citation = policy_chunks_with_metadata[i]['citation']
                     citation_info = f" [Page {citation.get('page', 'N/A')}, chars {citation.get('char_start', 0)}-{citation.get('char_end', 0)}]"
                 
-                policy_parts.append(f"Policy Chunk {i+1} (ID: {chunk_id}){citation_info}:\n{chunk}\n")
+                policy_parts.append(f"🏢 COMPANY POLICY - Chunk {i+1} (ID: {chunk_id}){citation_info}:\n{chunk}\n")
 
                 # Store metadata for UI links with citation info
                 metadata_entry = {
@@ -95,7 +95,7 @@ def context_combination_node(state) -> Dict[str, Any]:
                     citation = doc_chunks_with_metadata[i]['citation']
                     citation_info = f" [Page {citation.get('page', 'N/A')}, chars {citation.get('char_start', 0)}-{citation.get('char_end', 0)}]"
                 
-                doc_parts.append(f"Document Chunk {i+1} (ID: {chunk_id}){citation_info}:\n{chunk}\n")
+                doc_parts.append(f"📄 ATTACHED DOCUMENT - Chunk {i+1} (ID: {chunk_id}){citation_info}:\n{chunk}\n")
 
                 # Store metadata for UI links with citation info
                 metadata_entry = {
@@ -132,11 +132,13 @@ def context_combination_node(state) -> Dict[str, Any]:
         combined_context = "\n\n".join([
             f"USER QUESTION: {input_data.message}",
             "",
-            "RETRIEVED POLICY CONTEXT:",
+            "=== 🏢 COMPANY POLICY CONTEXT (from internal database) ===",
             "\n".join(policy_parts),
-            "RETRIEVED DOCUMENT CONTEXT:",
+            "",
+            "=== 📄 ATTACHED DOCUMENT CONTEXT (from uploaded file) ===",
             "\n".join(doc_parts),
-            "CONVERSATION HISTORY:",
+            "",
+            "=== 💬 CONVERSATION HISTORY ===",
             "\n".join(history_parts)
         ])
 

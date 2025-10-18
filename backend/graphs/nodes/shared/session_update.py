@@ -97,7 +97,7 @@ def session_update_node(state: Dict[str, Any]) -> Dict[str, Any]:
     
     # Debug: Check citations in state before forwarding
     citation_metadata = getattr(state, 'citation_metadata', None)
-    print(f"[SESSION_UPDATE_NODE] Citations in state: {len(citation_metadata) if citation_metadata else 0}")
+    print(f"[SESSION_UPDATE_NODE] Citations in state: {len(citation_metadata) if citation_metadata else 0})")
     
     # Preserve only the fields needed by the output_node
     result.update({
