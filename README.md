@@ -10,61 +10,61 @@ Features • Architecture • Tech Stack • Installation • Usage • API Docu
 
 ---
 
-## 🎯 Overview
+## Overview
 
 The Policy Compliance AI System is an enterprise-grade platform that combines the power of Google Gemini AI, LangGraph orchestration, and Retrieval-Augmented Generation (RAG) to automate compliance analysis. The system processes policy documents, identifies regulatory violations (GDPR, HIPAA), and provides actionable remediation strategies through an intuitive chat interface.
 
 **Key Highlights:**
-- 🤖 Multi-agent AI architecture with specialized processors
-- 📊 Real-time streaming analysis with Server-Sent Events (SSE)
-- 🔍 RAG-powered semantic search with 95%+ accuracy
-- 🛡️ Role-based access control for Admins and Employees
-- 💬 Interactive AI assistant with voice input support
-- 📈 Automated violation detection and recommendation generation
+- Multi-agent AI architecture with specialized processors
+- Real-time streaming analysis with Server-Sent Events (SSE)
+- RAG-powered semantic search with 95%+ accuracy
+- Role-based access control for Admins and Employees
+- Interactive AI assistant with voice input support
+- Automated violation detection and recommendation generation
 
 ---
 
-## ✨ Features
+## Features
 
-### 🤖 AI-Powered Compliance Analysis
+### AI-Powered Compliance Analysis
 - **Multi-Agent Orchestration:** Specialized agents for query analysis, document processing, chunk retrieval, and recommendations
 - **Real-Time Streaming:** Progressive result delivery via SSE for enhanced UX
 - **Semantic Understanding:** Vector embeddings and cosine similarity for context-aware analysis
 - **Automated Violation Detection:** Identifies compliance gaps against company policies with severity classification
 
-### 📄 Document Management & Analysis
+### Document Management & Analysis
 - **Intelligent Document Processing:** PDF parsing, chunking, and embedding generation
 - **Interactive PDF Viewer:** Built-in viewer with zoom and navigation controls
 - **Batch Analysis:** Process multiple documents simultaneously
 - **Context-Aware Retrieval:** RAG-based system retrieving relevant policy sections
 
-### 💬 Interactive AI Chat Interface
+### Interactive AI Chat Interface
 - **Natural Language Querying:** Ask compliance questions in plain English
 - **Voice Input Support:** Speech-to-text integration for hands-free interaction
 - **Thinking Process Visualization:** Transparent AI reasoning steps displayed in real-time
 - **File Attachment Support:** Analyze images and documents directly in chat
 - **Session Management:** Persistent chat history per session
 
-### 🛡️ Security & Access Control
+### Security & Access Control
 - **JWT Authentication:** Secure token-based authentication
 - **Role-Based Access Control (RBAC):** Distinct permissions for Admins and Employees
 - **Supabase Integration:** Secure database and storage backend
 - **User Management Dashboard:** Admin portal for employee account management
 
-### 📊 Recommendation Engine
+### Recommendation Engine
 - **Prioritized Action Items:** High/Medium/Low severity classification
 - **Timeline Estimation:** Immediate, short-term, and long-term remediation plans
 - **Resource Allocation:** Identifies resources needed for each recommendation
 - **Expected Outcomes:** Clear success metrics for each action item
 
-### 💎 Subscription Management
+### Subscription Management
 - **Tiered Plans:** Free, Standard, and Premium subscription models
 - **Payment Gateway:** Integrated billing and payment processing
 - **Usage Tracking:** Monitor API calls and document analysis limits
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ### Multi-Agent System Design
 
@@ -132,7 +132,7 @@ User Query → QueryAnalyzer → ChunkRetriever → PolicyAnalyzer → Recommend
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 ### Backend
 | Category | Technologies |
@@ -164,7 +164,7 @@ User Query → QueryAnalyzer → ChunkRetriever → PolicyAnalyzer → Recommend
 
 ---
 
-## 📂 Project Structure
+## Project Structure
 
 ```
 Policy_Compliance/
@@ -232,7 +232,7 @@ Policy_Compliance/
 
 ---
 
-## 🚀 Installation
+## Installation
 
 ### Prerequisites
 
@@ -336,7 +336,7 @@ Frontend will run on `http://localhost:5173`
 
 ---
 
-## 💻 Usage
+## Usage
 
 ### For Administrators
 
@@ -380,102 +380,6 @@ Frontend will run on `http://localhost:5173`
    - Access timeline estimates
    - View expected outcomes
 
-### API Examples
-
-**Stream Query Analysis:**
-```bash
-curl -X POST http://localhost:5000/queries/analyze/stream \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-  -d '{
-    "session_id": "unique-session-id",
-    "message": "What are our data privacy policies?",
-    "document_url": "optional-document-url"
-  }'
-```
-
-**Analyze Document:**
-```bash
-curl -X POST http://localhost:5000/documents/analyze \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-  -d '{
-    "document_url": "https://your-storage.com/contract.pdf",
-    "session_id": "unique-session-id"
-  }'
-```
-
-**Generate Recommendations:**
-```bash
-curl -X POST http://localhost:5000/recommendations/generate \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-  -d '{
-    "violations": [
-      {
-        "type": "Violation",
-        "title": "Data Retention Period Exceeded",
-        "description": "Contract specifies 5-year retention, policy allows max 3 years",
-        "severity": "high"
-      }
-    ],
-    "session_id": "unique-session-id"
-  }'
-```
-
----
-
-## 📡 API Documentation
-
-### Document Routes
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/documents/upload` | POST | Upload policy document |
-| `/documents/analyze` | POST | Analyze document for violations |
-
-### Query Routes
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/queries/analyze/stream` | POST | Stream AI analysis results via SSE |
-
-### Recommendation Routes
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/recommendations/generate` | POST | Generate recommendations from violations |
-| `/recommendations/summary` | POST | Get summary of recommendations |
-
-### Authentication
-
-All protected endpoints require JWT token in Authorization header:
-```
-Authorization: Bearer <your_jwt_token>
-```
-
----
-
-## 🎨 Screenshots & Demo
-
-### Admin Dashboard
-![Admin Dashboard](./docs/images/admin-dashboard.png)
-*Upload policies, manage users, and monitor system activity*
-
-### AI Chat Interface
-![AI Chat](./docs/images/ai-chat.png)
-*Interactive compliance assistant with real-time streaming*
-
-### Policy Analyzer
-![Policy Analyzer](./docs/images/policy-analyzer.png)
-*Document viewer with violation detection and recommendations*
-
-### Thinking Process Visualization
-![Thinking Process](./docs/images/thinking-ui.png)
-*Transparent AI reasoning steps displayed in real-time*
-
----
-
 ## 🧪 Testing
 
 ### Backend Tests
@@ -498,48 +402,6 @@ yarn test
 ```
 
 ---
-
-## 🤝 Contributing
-
-Contributions are welcome! Please follow these steps:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
----
-
-## 📄 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
----
-
-## 👥 Authors
-
-- **Your Name** - *Initial work* - [GitHub Profile](https://github.com/yourusername)
-
----
-
-## 🙏 Acknowledgments
-
-- Google Gemini AI for powering the language model
-- LangChain & LangGraph for agent orchestration framework
-- Supabase for backend infrastructure
-- React & Vite communities for frontend tools
-
----
-
-## 📞 Support
-
-For support, email support@yourcompany.com or open an issue in the repository.
-
----
-
-<div align="center">
-
 **Built with ❤️ using AI-powered multi-agent architecture**
 
 ⬆ Back to Top
