@@ -6,6 +6,7 @@ Specific to company policy graph.
 """
 
 from typing import Dict, Any, List
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from graphs.nodes.models import ContextCombinationNodeInput, ContextCombinationNodeOutput
 
 
@@ -119,18 +120,61 @@ def context_combination_node(state) -> Dict[str, Any]:
         # Format chat history
         history_parts = []
         for msg in chat_history[-5:]:  # Last 5 messages
-            if hasattr(msg, 'type'):  # LangChain message
-                role = msg.type
+            role = None
+            content = None
+            # Prefer LangChain message classes when available
+            if isinstance(msg, HumanMessage):
+                role = 'user'
                 content = msg.content
-            else:  # Dict format
-                role = msg.get("role", "")
-                content = msg.get("content", "")
+            elif isinstance(msg, AIMessage):
+                role = 'assistant'
+                content = msg.content
+            elif isinstance(msg, SystemMessage):
+                role = 'system'
+                content = msg.content
+            else:
+                # Dict-like fallback
+                try:
+                    role = msg.get("role", None)
+                    content = msg.get("content", None)
+                except Exception:
+                    # Generic object fallback
+                    role = getattr(msg, 'type', None) or getattr(msg, 'role', None)
+                    content = getattr(msg, 'content', None)
+
             if role and content:
                 history_parts.append(f"{role.title()}: {content}")
+
+        # Decide whether to force preference for attached document
+        preference_instruction = ""
+        try:
+            # If any attached document chunks exist for this session, prefer them.
+            # If the user's message explicitly references the document, force strict adherence.
+            lower_msg = (input_data.message or "").lower()
+            doc_indicators = ["this document", "uploaded", "attached", "the document", "pdf", "file"]
+            if len(doc_parts) > 0:
+                # Default preference when docs exist
+                preference_instruction = (
+                    "NOTE: This session has an uploaded/attached document. "
+                    "Prefer answering from the 'ATTACHED DOCUMENT' section below."
+                )
+                # If user explicitly references the document, make instruction stronger
+                if any(ind in lower_msg for ind in doc_indicators):
+                    preference_instruction = (
+                        "IMPORTANT: The user asked specifically about an uploaded/attached document. "
+                        "Answer using ONLY the 'ATTACHED DOCUMENT' section below. Do NOT use COMPANY POLICY or other sources unless the user explicitly asks for cross-references."
+                    )
+                    print("[CONTEXT_COMBINATION_NODE] Enforcing attached-document-first instruction (strict)")
+                else:
+                    print("[CONTEXT_COMBINATION_NODE] Enforcing attached-document-first instruction (prefer docs)")
+        except Exception:
+            preference_instruction = ""
 
         # Combine everything
         combined_context = "\n\n".join([
             f"USER QUESTION: {input_data.message}",
+            "",
+            preference_instruction,
             "",
             "=== 🏢 COMPANY POLICY CONTEXT (from internal database) ===",
             "\n".join(policy_parts),

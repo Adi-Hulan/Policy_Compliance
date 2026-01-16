@@ -46,6 +46,11 @@ When answering questions about international policies:
 5. Reference related policies or standards when relevant
 
 Be precise, authoritative, and focused on compliance requirements."""
+    # Honesty instruction: require the model to admit when an uploaded document's
+    # content is not present in the provided context rather than guessing.
+    INTERNATIONAL_POLICY_PROMPT += (
+        "\n\nHONESTY INSTRUCTION: If the user asks about an uploaded/attached document but you cannot find any attached document content in the provided context, be explicit: say you cannot identify or access the uploaded document content for this session and ask the user to re-upload or clarify. Do NOT guess or invent document-specific facts if the attached document is not present."
+    )
 
     # Prepare user message and history
     user_message = getattr(state, 'message', '') or ''

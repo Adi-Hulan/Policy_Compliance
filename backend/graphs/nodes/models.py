@@ -129,12 +129,13 @@ class PolicyRetrieverNodeOutput(NodeOutput):
 class DocumentRetrieverNodeInput(NodeInput):
     """Input for document retriever node."""
     message: str
-    tmp_file_path: str
+    tmp_file_path: Optional[str] = None
 
 
 class DocumentRetrieverNodeOutput(NodeOutput):
     """Output from document retriever node."""
     doc_context: List[str]
+    doc_chunks_with_metadata: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 class ContextCombinationNodeInput(NodeInput):

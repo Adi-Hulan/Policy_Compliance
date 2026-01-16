@@ -1,7 +1,12 @@
 # Enhanced retriever with citation support
 from db.connection import get_db
 import os
-from google import genai
+
+# Optional import for Google GenAI SDK; allow running tests without the SDK installed.
+try:
+    from google import genai
+except Exception:
+    genai = None
 from typing import List, Dict, Any
 
 class RetrieverV2:
@@ -9,7 +14,13 @@ class RetrieverV2:
 
     def __init__(self):
         # Initialize client using API key from environment
-        self.client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+        if genai is not None:
+            try:
+                self.client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+            except Exception:
+                self.client = None
+        else:
+            self.client = None
         self.model = "gemini-embedding-001"
 
     def retrieve_chunks_with_citations(self, question: str, top_k: int = 5) -> Dict[str, Any]:

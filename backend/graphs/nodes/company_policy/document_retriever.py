@@ -52,8 +52,9 @@ def document_retriever_node(state) -> Dict[str, Any]:
     query = input_data.message
     tmp_file_path = input_data.tmp_file_path
 
-    if not query or not tmp_file_path:
-        print("[DOCUMENT_RETRIEVER_NODE] Missing query or file path, skipping")
+    # tmp_file_path is optional now: retrieval can proceed using the temp DB table
+    if not query:
+        print("[DOCUMENT_RETRIEVER_NODE] Missing query, skipping")
         return {}
 
     print(f"[DOCUMENT_RETRIEVER_NODE] Retrieving from document for query: {query}")
@@ -73,17 +74,29 @@ def document_retriever_node(state) -> Dict[str, Any]:
         if result["status"] == "success":
             chunks = result["chunks"]
             print(f"[DOCUMENT_RETRIEVER_NODE] ✓ Retrieved {len(chunks)} chunks")
+            # Ensure compatibility with context combination which expects chunk metadata
+            # Temp document chunks may lack a 'citation' field; add None to keep shape
+            for chunk in chunks:
+                if 'citation' not in chunk:
+                    chunk['citation'] = None
+
             # Extract content strings for output validation
             doc_context = [chunk.get("content", "") for chunk in chunks if chunk.get("content")]
+            # Store full chunk data including metadata for context combination
+            doc_chunks_with_metadata = chunks
         else:
             print("[DOCUMENT_RETRIEVER_NODE] ✗ Retrieval failed")
             doc_context = []
+            doc_chunks_with_metadata = []
 
         # Emit retriever end event
         callback_handler.on_retriever_end(documents=doc_context)
 
-        # Return validated output
-        output_data = DocumentRetrieverNodeOutput(doc_context=doc_context)
+        # Return validated output including chunk metadata (keeps compatibility with context_combination)
+        output_data = DocumentRetrieverNodeOutput(
+            doc_context=doc_context,
+            doc_chunks_with_metadata=doc_chunks_with_metadata
+        )
         return output_data.model_dump()
 
     except Exception as e:

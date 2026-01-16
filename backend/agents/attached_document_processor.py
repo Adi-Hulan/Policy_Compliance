@@ -121,7 +121,13 @@ class DocumentChunker:
 class DocumentProcessorTemp:
     def __init__(self):
         print(f"Initializing DocumentProcessorTemp")
-        self.client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+        # Initialize genai client if available; tolerate missing API key so processing
+        # can continue in environments without embeddings (we'll insert chunks with NULL embeddings).
+        try:
+            self.client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+        except Exception:
+            print("[DocumentProcessorTemp] genai client not available or GEMINI_API_KEY missing; proceeding without embeddings")
+            self.client = None
         self.model = "gemini-embedding-001"
         self.chunker = DocumentChunker()
 
@@ -181,21 +187,24 @@ class DocumentProcessorTemp:
 
                 try:
                     # Generate embedding using official API
-                    result = self.client.models.embed_content(
-                        model=self.model,
-                        contents=[clean_chunk]  # must be a list
-                    )
+                    if self.client is not None:
+                        result = self.client.models.embed_content(
+                            model=self.model,
+                            contents=[clean_chunk]  # must be a list
+                        )
 
-                    # Extract embedding
-                    embedding = result.embeddings[0].values
-                    embedding = [float(x) for x in embedding]
+                        # Extract embedding
+                        embedding = result.embeddings[0].values
+                        embedding = [float(x) for x in embedding]
+                    else:
+                        # No embedding client available; insert NULL embedding and continue
+                        print("[DocumentProcessorTemp] Embedding client not available; inserting chunk without embedding")
+                        embedding = None
 
                 except Exception as e:
-                    return {
-                        "agent": "DocumentProcessor",
-                        "status": "error",
-                        "result": str(e)
-                    }
+                    # If embedding generation fails for any reason, log and continue without embedding
+                    print(f"[DocumentProcessorTemp] Warning: embedding generation failed: {e}; inserting chunk without embedding")
+                    embedding = None
 
 
                 doc_id = str(uuid.uuid4())

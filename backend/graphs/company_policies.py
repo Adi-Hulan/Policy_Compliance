@@ -48,7 +48,12 @@ from graphs.nodes.models import CompanyPolicyState
 async def company_policy_llm_node(state):
     """Wrapper for LLM node with company policy prompt."""
     from .nodes.shared.llm import llm_node
-    return await llm_node(state, MAIN_PROMPT, "full_user_message")
+    # Add honesty instruction: tell model to admit when attached document content
+    honesty_instruction = (
+        "\n\nHONESTY INSTRUCTION: If the user asks about an uploaded or attached document but you cannot find any attached document content in the provided context, be explicit: say you cannot identify or access the uploaded document content for this session and ask the user to re-upload or clarify. Do NOT guess or invent document-specific facts if the attached document is not present."
+    )
+    system_prompt = f"{MAIN_PROMPT}{honesty_instruction}"
+    return await llm_node(state, system_prompt, "full_user_message")
 
 
 # --- Graph Construction ---

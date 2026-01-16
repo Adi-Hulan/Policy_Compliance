@@ -6,23 +6,13 @@ Specific to international policy graph.
 """
 
 from typing import Dict, Any, List
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from graphs.nodes.models import ContextCombinationNodeInput, ContextCombinationNodeOutput
 
 
 def international_context_combination_node(state) -> Dict[str, Any]:
     """
     Combine retrieved international policy chunks with conversation history.
-
-    Args:
-        state: Current graph state
-
-    Returns:
-        Dict with combined_context (formatted context string) and chunk_metadata
-
-    Streams:
-        - context_combination_start: Context combination initiated
-        - context_combination_progress: Context combination progress updates
-        - context_combination_complete: Context combination finished
     """
     # Validate inputs using Pydantic model
     try:
@@ -118,18 +108,57 @@ def international_context_combination_node(state) -> Dict[str, Any]:
         # Format chat history
         history_parts = []
         for msg in chat_history[-5:]:  # Last 5 messages
-            if hasattr(msg, 'type'):  # LangChain message
-                role = msg.type
+            role = None
+            content = None
+            # Prefer LangChain message classes when available
+            if isinstance(msg, HumanMessage):
+                role = 'user'
                 content = msg.content
-            else:  # Dict format
-                role = msg.get("role", "")
-                content = msg.get("content", "")
+            elif isinstance(msg, AIMessage):
+                role = 'assistant'
+                content = msg.content
+            elif isinstance(msg, SystemMessage):
+                role = 'system'
+                content = msg.content
+            else:
+                # Dict-like fallback
+                try:
+                    role = msg.get("role", None)
+                    content = msg.get("content", None)
+                except Exception:
+                    # Generic object fallback
+                    role = getattr(msg, 'type', None) or getattr(msg, 'role', None)
+                    content = getattr(msg, 'content', None)
+
             if role and content:
                 history_parts.append(f"{role.title()}: {content}")
+
+        # Decide whether to force preference for attached document
+        preference_instruction = ""
+        try:
+            lower_msg = (input_data.message or "").lower()
+            doc_indicators = ["this document", "uploaded", "attached", "the document", "pdf", "file"]
+            if len(doc_parts) > 0:
+                preference_instruction = (
+                    "NOTE: This session has an uploaded/attached document. "
+                    "Prefer answering from the 'ATTACHED DOCUMENT' section below."
+                )
+                if any(ind in lower_msg for ind in doc_indicators):
+                    preference_instruction = (
+                        "IMPORTANT: The user asked specifically about an uploaded/attached document. "
+                        "Answer using ONLY the 'ATTACHED DOCUMENT' section below. Do NOT use COMPANY POLICY or other sources unless the user explicitly asks for cross-references."
+                    )
+                    print("[INTERNATIONAL_CONTEXT_COMBINATION_NODE] Enforcing attached-document-first instruction (strict)")
+                else:
+                    print("[INTERNATIONAL_CONTEXT_COMBINATION_NODE] Enforcing attached-document-first instruction (prefer docs)")
+        except Exception:
+            preference_instruction = ""
 
         # Combine everything
         combined_context = "\n\n".join([
             f"USER QUESTION: {input_data.message}",
+            "",
+            preference_instruction,
             "",
             "RETRIEVED INTERNATIONAL POLICY CONTEXT:",
             "\n".join(policy_parts),

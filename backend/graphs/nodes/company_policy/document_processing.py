@@ -47,12 +47,25 @@ def document_processing_node(state) -> Dict[str, Any]:
     print(f"[DOCUMENT_PROCESSING_NODE] Processing file: {tmp_file_path}")
 
     try:
-        # Extract text from PDF
-        text_content = extract_text_from_pdf(tmp_file_path)
+        # Use the shared DocumentProcessorTemp to process and persist the document into
+        # the temporary DB table (temp_documents_{safe_session_id}). This ensures
+        # subsequent retriever nodes can query the temp table for chunks.
+        safe_session_id = getattr(state, 'safe_session_id', None)
+        if not safe_session_id:
+            print("[DOCUMENT_PROCESSING_NODE] ✗ Missing safe_session_id, cannot insert into temp collection")
+            return {}
 
-        print(f"[DOCUMENT_PROCESSING_NODE] ✓ Extracted {len(text_content)} characters")
+        result = _doc_processor.process(tmp_file_path, safe_session_id)
 
-        # Clean up temp file
+        if result.get("status") == "success":
+            # The processor inserts chunks into the temp table; use its message as processed_content
+            processed_content = result.get("result", "Document processed successfully")
+            print(f"[DOCUMENT_PROCESSING_NODE] ✓ Document processed into temp table: {result.get('collection_name')}")
+        else:
+            processed_content = result.get("result", "Document processing failed")
+            print(f"[DOCUMENT_PROCESSING_NODE] ✗ Document processing reported error: {processed_content}")
+
+        # Clean up temp file (processor already read it)
         try:
             os.unlink(tmp_file_path)
             print(f"[DOCUMENT_PROCESSING_NODE] ✓ Cleaned up temp file")
@@ -60,7 +73,7 @@ def document_processing_node(state) -> Dict[str, Any]:
             print(f"[DOCUMENT_PROCESSING_NODE] Warning: Could not clean up temp file: {e}")
 
         # Return validated output
-        output_data = DocumentProcessingNodeOutput(processed_content=text_content)
+        output_data = DocumentProcessingNodeOutput(processed_content=processed_content)
         return output_data.model_dump()
 
     except Exception as e:
